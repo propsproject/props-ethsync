@@ -1,0 +1,8 @@
+*.log
+.idea/
+*.iml
+dist/
+build/
+node_modules/
+package-lock.json
+settings/settings.development.ts

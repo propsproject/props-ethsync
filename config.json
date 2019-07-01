@@ -1,0 +1,7 @@
+{
+  "microservice": {
+    "name": "props-eth-sync",
+    "endpoint_prefix": "eth-sync",
+    "port": "3000"
+  }
+}

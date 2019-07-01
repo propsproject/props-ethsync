@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "outDir": "dist",
+    "sourceMap": true,
+    "allowJs": true,
+    "noImplicitAny": false,
+    "moduleResolution": "node",
+    "types": [
+      "node",
+      "joi",
+      "mocha",
+      "chai",
+      "chai-as-promised",
+      "lodash",
+      "moment-timezone"
+    ]
+  },
+  "include": [
+    "lib/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib/**/*.test.ts"
+  ]
+}
