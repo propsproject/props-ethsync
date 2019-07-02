@@ -222,8 +222,8 @@ def deployImage(serviceName, environment, cluster, deployments) {
 
       for (int i = 0; i < deployments.size(); i++) {
         def deployment = deployments[i]
-        sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/submit-rewards props-eth-sync-api=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
-        sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/sync-transfers props-eth-sync-api=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
+        sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/submit-rewards submit-rewards=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
+        sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/sync-transfers sync-transfers=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
         // sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image deployment/${serviceName}-${deployment} ${serviceName}-${deployment}=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
       }
   }
