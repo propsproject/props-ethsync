@@ -91,7 +91,7 @@ def deployServices(serviceName, environment, cluster, deployments) {
   stepsForParallel[stepName] = {
     buildImage(serviceName, environment)
     pushImage(serviceName, environment)
-    // deployImage(serviceName, environment, cluster, deployments)
+    deployImage(serviceName, environment, cluster, deployments)
   }
 
   return stage('Deploying Services') {
