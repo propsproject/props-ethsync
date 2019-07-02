@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
 import { TransactionManager } from 'propskit';
-const { AppLogger } = require('@younow/lib-logger');
+const { AppLogger } = require('props-lib-logger');
 const Web3 = require('web3');
 const lockfile = require('proper-lockfile');
 
@@ -42,9 +42,9 @@ export default class Sync {
     // If we are doing a full sync, start the sync from the token deployment block, and the toBlock is the current ethereum block - the confirmation blocks (15)
     // For the latest sync, the fromBlock is the eth block stored on the sidechain, and the toBlock is the current ethereum block - the confirmation blocks (15). Just make sure we have enough blocks to process
     let fromBlock = parseInt(config.settings.ethereum.token_deployment_block, 10) + 1; // The first block is the contract itself
-    
+
     let toBlock = ethBlockNumber - parseInt(config.settings.ethereum.confirmation_blocks, 10);
-    
+
     if (!fullSync) {
       fromBlock = await this.getSidechainEthBlock() + 1; // We want to start from the block number + 1, since we already processed that blockNumber the previous time.
 
@@ -122,14 +122,14 @@ export default class Sync {
             const timeRemaining = Math.floor(((list.length - x) / batchSize) * avgTime);
             AppLogger.log(`Still working, ${list.length - x} remaining items, estimated time remaining (minutes)=${timeRemaining}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
             startTime = new Date().getTime() / 1000;
-          }          
+          }
           const transaction: Transaction = list[x];
 
           const toBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.to).call({}, transaction.blockNumber));
           const fromBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.from).call({}, transaction.blockNumber));
           const from = transaction.from;
           const to = transaction.to;
-          if (from !== '0x0000000000000000000000000000000000000000') {            
+          if (from !== '0x0000000000000000000000000000000000000000') {
             if (!(from in balanceUpdateTransactions)) {
               balanceUpdateTransactions[from] = { address: from, balance: fromBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };
               totalTx = totalTx + 1;
@@ -139,7 +139,7 @@ export default class Sync {
               }
             }
           }
-          if (to !== '0x0000000000000000000000000000000000000000') {            
+          if (to !== '0x0000000000000000000000000000000000000000') {
             if (!(to in balanceUpdateTransactions)) {
               totalTx = totalTx + 1;
               balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };

@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
 import { TransactionManager } from 'propskit';
-const { AppLogger } = require('@younow/lib-logger');
+const { AppLogger } = require('props-lib-logger');
 const PrivateKeyProvider = require('truffle-privatekey-provider');
 const Web3 = require('web3');
 const { soliditySha3 } = require('web3-utils');
@@ -26,7 +26,7 @@ interface RewardsContractData {
 }
 
 export default class DailyRewards {
-  
+
   web3 = new Web3(config.settings.ethereum.uri);
   tokenContract: any;
   tm: TransactionManager;
@@ -42,42 +42,42 @@ export default class DailyRewards {
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
       // setup web3 provider with private key
-      let provider;      
+      let provider;
       this.currentValidatorPK = config.settings.ethereum.validator_pk;
       console.log(`config.settings.ethereum.localhost_test_contract=${config.settings.ethereum.localhost_test_contract}, length=${config.settings.ethereum.localhost_test_contract.length}`);
-      if (config.settings.ethereum.localhost_test_contract.length > 0) {      
-        provider = new PrivateKeyProvider(this.currentValidatorPK, 'http://localhost:8545');  
+      if (config.settings.ethereum.localhost_test_contract.length > 0) {
+        provider = new PrivateKeyProvider(this.currentValidatorPK, 'http://localhost:8545');
       } else {
         provider = new PrivateKeyProvider(this.currentValidatorPK, config.settings.ethereum.uri);
       }
-      
+
       this.web3 = new Web3(provider);
       this.contractAddress =  config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
       this.tokenContract = new this.web3.eth.Contract(JSON.parse(this.abi()), this.contractAddress);
       if (this.currentValidatorPK.length === 0) {
         throw new Error('Missing validator private key');
       }
-      
+
       const currentAccount: any = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
-      this.currentValidatorAddress = currentAccount.address;      
-      
+      this.currentValidatorAddress = currentAccount.address;
+
       await this.calcRewardsDayData();
       await this.getRewardsContractData();
 
       // check if i am an active validator that should submit
-      if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {                
+      if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
-        if (this.rewardsContractData.applications.length === 1) {          
+        if (this.rewardsContractData.applications.length === 1) {
           const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
-            .integerValue(BigNumber.ROUND_DOWN).toString();          
+            .integerValue(BigNumber.ROUND_DOWN).toString();
           const rewardsHash = soliditySha3(
             this.rewardsDayData.rewardsDay,
-            this.rewardsContractData.applications.length, // == 1 
+            this.rewardsContractData.applications.length, // == 1
             1, // only 1 app
-            this.formatArrayForSha3(this.rewardsContractData.applications, 'address'), 
+            this.formatArrayForSha3(this.rewardsContractData.applications, 'address'),
             this.formatArrayForSha3([dailyRewardAmount], 'uint256'),
           );
           const submittedData:any = {
@@ -90,11 +90,11 @@ export default class DailyRewards {
             applications: this.rewardsContractData.applications,
             amounts: [dailyRewardAmount],
           };
-          AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);  
+          AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
 
           await this.tokenContract.methods.submitDailyRewards(
-            this.rewardsDayData.rewardsDay, 
-            rewardsHash, 
+            this.rewardsDayData.rewardsDay,
+            rewardsHash,
             this.rewardsContractData.applications,
             [dailyRewardAmount],
           ).send(
@@ -116,14 +116,14 @@ export default class DailyRewards {
         }
       } else {
         const msg:string = `This validator ${this.currentValidatorAddress} is not on the list (${JSON.stringify(this.rewardsContractData.validators)}) thus should not submit`;
-        AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);  
+        AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
         throw new Error(msg);
       }
 
     } catch (error) {
       AppLogger.log(`${error}`, 'DAILY_SUMMARY_CALCULATE_ERROR', 'jon', 1, 0, 0);
       throw error;
-    }    
+    }
   }
 
   async getRewardsContractData(): Promise<boolean> {
@@ -132,7 +132,7 @@ export default class DailyRewards {
     const maxTotalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.maxTotalSupply().call());
     const totalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.totalSupply().call());
     const applicationRewardsPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
-    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());    
+    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());
     this.rewardsContractData = {
       applications,
       validators,
@@ -166,7 +166,7 @@ export default class DailyRewards {
     return true;
   }
 
-  formatArrayForSha3(arr, type): any {   
+  formatArrayForSha3(arr, type): any {
     return { type, value: arr };
   }
 

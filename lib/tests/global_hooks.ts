@@ -1,5 +1,5 @@
 import 'babel-polyfill';
-const { AppLogger } = require('@younow/lib-logger');
+const { AppLogger } = require('props-lib-logger');
 const sinon = require('sinon');
 
 before('Mock AppLogger to cleanup tests', () => {

@@ -1,6 +1,6 @@
 import config from '../config';
 import rp = require('request-promise-native');
-import { AppLogger } from '@younow/lib-logger';
+import { AppLogger } from 'props-lib-logger';
 import Transaction from '../models/transaction';
 import { URLSearchParams } from 'url';
 
