@@ -1,7 +1,5 @@
 FROM node:8.16-slim AS multistage
 WORKDIR /service
-ADD .npmrc /service/.npmrc
-ADD .npmrc .
 ADD . /service
 RUN rm /service/node_modules -r
 ADD yarn.lock /service/yarn.lock
