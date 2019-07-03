@@ -7,6 +7,7 @@ ADD package.json /service/package.json
 RUN apt-get update && apt-get install -y git python make gcc g++
 RUN yarn upgrade
 RUN rm /service/lib -rf
+RUN rm /service/lib/settings/settings.development.js
 
 FROM node:8.16-slim
 CMD npm run sync-latest
