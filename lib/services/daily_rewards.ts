@@ -11,9 +11,11 @@ import config from '../config';
 interface RewardsDayTimeData {
   rewardsStartTimestamp:number;
   timestampOnEthereum:number;
+  blockNumberOnEthereum:number;
   secondsInDay:number;
   rewardsDay:number;
   contractAddress:string;
+  previousDayRewardsDayTimestamp:number;
 }
 
 interface RewardsContractData {
@@ -62,7 +64,8 @@ export default class DailyRewards {
       this.currentValidatorAddress = currentAccount.address;
 
       await this.calcRewardsDayData();
-      await this.getRewardsContractData();
+      const totalSupplyBlockToUse:number = await this.getBlockNumberOfPreviousRewardsDay();            
+      await this.getRewardsContractData(totalSupplyBlockToUse);      
 
       // check if i am an active validator that should submit
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
@@ -126,13 +129,51 @@ export default class DailyRewards {
     }
   }
 
-  async getRewardsContractData(): Promise<boolean> {
+  async getBlockNumberOfPreviousRewardsDay(): Promise<number> {
+    try {
+      const currentEthBlockNumber:number = this.rewardsDayData.blockNumberOnEthereum;
+      const currentEthTimestamp:number = this.rewardsDayData.timestampOnEthereum;
+      const previousDayRewardsDayTimestampPlusBuffer = this.rewardsDayData.previousDayRewardsDayTimestamp + (15 * 60); // 15 minute buffer
+      let guestimateBlockNumber = currentEthBlockNumber - Math.floor((currentEthTimestamp - previousDayRewardsDayTimestampPlusBuffer) / config.settings.ethereum.avg_block_time);
+      // tslint:disable-next-line:max-line-length
+      // console.log(`currentEthBlockNumber=${currentEthBlockNumber}, currentEthTimestamp=${currentEthTimestamp}, previousDayRewardsDayTimestampPlusBuffer=${previousDayRewardsDayTimestampPlusBuffer},avg_block_time=${config.settings.ethereum.avg_block_time},guestimateBlockNumber=${guestimateBlockNumber}`);      
+      let guestimateBlockData:any = await this.web3.eth.getBlock(guestimateBlockNumber);      
+      let minDif = 99999999;
+      let chosenBlock = -1;
+      let currentDif = guestimateBlockData.timestamp - this.rewardsDayData.previousDayRewardsDayTimestamp;
+      let requestsCount = 0;
+      // console.log(`guestimateBlockData.timestamp=${guestimateBlockData.timestamp}, guestimateBlockNumber=${guestimateBlockNumber}, minDif=${minDif}, currentDif=${currentDif}, requestsCount=${requestsCount}`);
+      while(Math.abs(currentDif) < minDif) {
+        const previousMinDif = minDif;
+        minDif = Math.abs(currentDif);
+        if (minDif < previousMinDif) {
+          chosenBlock = guestimateBlockNumber;
+        }
+        if (currentDif > 0) {
+          guestimateBlockNumber -= 1;
+        } else {
+          guestimateBlockNumber += 1;
+        }
+        guestimateBlockData = await this.web3.eth.getBlock(guestimateBlockNumber);
+        requestsCount += 1;
+        currentDif = guestimateBlockData.timestamp - previousDayRewardsDayTimestampPlusBuffer;        
+        // console.log(`guestimateBlockData.timestamp=${guestimateBlockData.timestamp}, guestimateBlockNumber=${guestimateBlockNumber}, minDif=${minDif}, currentDif=${currentDif}, requestsCount=${requestsCount}, chosenBlock=${chosenBlock}`);
+      }      
+      // console.log(chosenBlock);
+      return chosenBlock;
+    } catch (error) {
+      AppLogger.log(`${error}`, 'DAILY_SUMMARY_GET_BLOCK_NUMBER_ERROR', 'jon', 1, 0, 0);
+      throw error;
+    }
+  }
+
+  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {
     const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();
     const validators:string[] = await this.tokenContract.methods.getEntities(1, this.rewardsDayData.rewardsDay).call();
     const maxTotalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.maxTotalSupply().call());
-    const totalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.totalSupply().call());
+    const totalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
     const applicationRewardsPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
-    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());
+    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());    
     this.rewardsContractData = {
       applications,
       validators,
@@ -141,7 +182,7 @@ export default class DailyRewards {
       applicationRewardsPphm,
       applicationRewardsMaxVariationPphm,
     };
-    AppLogger.log(`Getting rewards contract data ${JSON.stringify(this.rewardsContractData)}`, 'DAILY_SUMMARY_GET_REWARDS_CONTRACT_DATA', 'jon', 1, 0, 0);
+    AppLogger.log(`Getting rewards contract data, totalSupplyBlock=${totalSupplyBlock} ${JSON.stringify(this.rewardsContractData)}`, 'DAILY_SUMMARY_GET_REWARDS_CONTRACT_DATA', 'jon', 1, 0, 0);
     if (!(applications.length > 0 && validators.length > 0 && maxTotalSupply.isPositive() && totalSupply.isPositive() && applicationRewardsPphm.isPositive() && applicationRewardsMaxVariationPphm.isPositive()))
       throw new Error(`Could not get valid rewards contract data ${JSON.stringify(this.rewardsContractData)}`);
     return true;
@@ -153,11 +194,14 @@ export default class DailyRewards {
     const timestampOnEthereum:number = lastBlockOnEtheruem.timestamp;
     const secondsInDay:number = parseInt(config.settings.ethereum.seconds_in_day, 10);
     const rewardsDay:number = Math.floor((timestampOnEthereum - rewardsStartTimestamp) / secondsInDay); // no +1 getting for yesterday;
+    const previousDayRewardsDayTimestamp:number = Number(rewardsStartTimestamp) + ((Number(rewardsDay) - 1) * Number(secondsInDay));
     this.rewardsDayData = {
       rewardsStartTimestamp,
       timestampOnEthereum,
+      blockNumberOnEthereum: lastBlockOnEtheruem.number,
       secondsInDay,
       rewardsDay,
+      previousDayRewardsDayTimestamp,
       contractAddress: this.contractAddress,
     };
     AppLogger.log(`Getting rewards day data ${JSON.stringify(this.rewardsDayData)}`, 'DAILY_SUMMARY_GET_REWARDS_DAY', 'jon', 1, 0, 0);
