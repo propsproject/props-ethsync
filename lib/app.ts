@@ -2,6 +2,7 @@ import SyncService from './services/sync';
 import ValidatorSetup from './services/validator_setup';
 import ApplicationSetup from './services/application_setup';
 import DailyRewards from './services/daily_rewards';
+import CreateNewWallet from './services/create_new_wallet';
 
 const commander = require('commander');
 
@@ -13,7 +14,8 @@ program
   .option('-l, --sync-latest', 'Sync the latest blocks')
   .option('-v, --validator-setup', 'Setup a validator on etheruem')
   .option('-ap, --application-setup', 'Setup an application on etheruem')
-  .option('-s, --submit-rewards', 'Submit daily rewards summary data');
+  .option('-s, --submit-rewards', 'Submit daily rewards summary data')
+  .option('-c, --create-wallet', 'Create a new wallet');
 
 program.parse(process.argv);
 
@@ -57,6 +59,15 @@ if (program.syncAll) {
   const dailyRewards = new DailyRewards();  
   dailyRewards.calculateAndSubmit().then(() => {
     console.log(`Calculated and submitted rewards succesfully`);
+    process.exit(0);    
+  }).catch((error) => {
+    console.log(error);
+    process.exit(1);
+  });
+} else if (program.createWallet) {
+  const createNewWallet = new CreateNewWallet();  
+  createNewWallet.generate().then((walletInfo) => {
+    console.log(`Generated wallet with following info: ${JSON.stringify(walletInfo)}`);
     process.exit(0);    
   }).catch((error) => {
     console.log(error);
