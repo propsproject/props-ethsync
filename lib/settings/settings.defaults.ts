@@ -30,6 +30,7 @@ export default () => ({
     max_blocks_to_process: 500,
     validator_pk: process.env.VALIDATOR_SUBMISSION_PK,
     seconds_in_day: process.env.SECONDS_IN_DAY ? process.env.SECONDS_IN_DAY : 86400,
+    avg_block_time: process.env.AVG_BLOCK_TIME ? process.env.AVG_BLOCK_TIME : 15,
     submit_rewards_gas: 1280000,
     gas_price: '20', //gwei
     entity_setup_gas: 250000,
