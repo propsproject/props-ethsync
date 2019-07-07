@@ -28,7 +28,7 @@ if (program.syncAll) {
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   })
 } else if (program.syncLatest) {
   const sync = new SyncService();
@@ -37,7 +37,7 @@ if (program.syncAll) {
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.validatorSetup) {
   const validatorSetup = new ValidatorSetup();  
@@ -46,7 +46,7 @@ if (program.syncAll) {
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.applicationSetup) {
   const applicationSetup = new ApplicationSetup();  
@@ -55,7 +55,7 @@ if (program.syncAll) {
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.submitRewards) {
   const dailyRewards = new DailyRewards();  
@@ -64,7 +64,7 @@ if (program.syncAll) {
     process.exit(0);    
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.createWallet) {
   const createNewWallet = new CreateNewWallet();  
@@ -73,16 +73,16 @@ if (program.syncAll) {
     process.exit(0);    
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.multisigValidatorSetup) {
   const validatorSetup = new ValidatorSetup();  
-  validatorSetup.setup(process.argv[3], process.argv[4], process.argv[5]).then(() => {
-    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}`);
+  validatorSetup.setupViaMultiSig(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
+    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 } else if (program.multisigApplicationSetup) {
   const applicationSetup = new ApplicationSetup();  
@@ -91,6 +91,6 @@ if (program.syncAll) {
     process.exit(0);
   }).catch((error) => {
     console.log(error);
-    process.exit(1);
+    process.exit(0);
   });
 }

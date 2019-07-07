@@ -32,9 +32,8 @@ export default class ValidatorSetup {
     console.log(account.address);
     const tokenContractAddress = config.settings.ethereum.localhost_test_contract.length 
     > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
-    const TokenContract = new web3.eth.Contract(JSON.parse(this.abi()), tokenContractAddress);
-
-    const multisigWalletABI = require('./MultiSigWallet.json');
+    const TokenContract = new web3.eth.Contract(JSON.parse(this.abi()), tokenContractAddress);    
+    const multisigWalletABI = require('./MultiSigWallet.json');    
     const multiSigContractInstance = new web3.eth.Contract(multisigWalletABI.abi, _multiSigAddress);
     const encodedData = await TokenContract.methods.updateEntity(1, web3.utils.asciiToHex(_name), _rewardsAddress, _sidechainAddress,
     ).encodeABI();
@@ -46,7 +45,7 @@ export default class ValidatorSetup {
         encodedData,
       ).send(
         { from: account.address,
-          gas: config.settings.ethereum.entity_setup_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei'),
+          gas: config.settings.ethereum.entity_setup_multisig_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei'),
         }).then((receipt) => {
           console.log(`receipt=${JSON.stringify(receipt)}`);
         }).catch((err) => {

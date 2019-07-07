@@ -7,7 +7,7 @@
     "check-coverage": "nyc check-coverage --statement 100 --branches 100 --functions 100 --lines 100 --extension .ts",
     "build": "npm run transpile && npm run doc",
     "transpile": "tsc && npm run copyfiles",
-    "copyfiles": "copyfiles lib/**/*.lua lib/**/*.js dist -u 1",
+    "copyfiles": "copyfiles lib/**/*.lua lib/**/*.js lib/**/*.json dist -u 1",
     "logs": "tail -f logs/app.log | ./node_modules/.bin/bunyanjs",
     "dashboard": "npm run transpile && nodejs-dashboard node -- -r nodejs-dashboard dist/app.js",
     "cover": "mkdir -p .nyc_output && nyc report --reporter=lcov",
