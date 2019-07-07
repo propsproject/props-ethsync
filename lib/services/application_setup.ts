@@ -46,7 +46,7 @@ export default class ApplicationSetup {
         encodedData,
       ).send(
         { from: account.address,
-          gas: config.settings.ethereum.entity_setup_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei'),
+          gas: config.settings.ethereum.entity_setup_multisig_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei'),
         }).then((receipt) => {
           console.log(`receipt=${JSON.stringify(receipt)}`);
         }).catch((err) => {
