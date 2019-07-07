@@ -15,7 +15,9 @@ program
   .option('-v, --validator-setup', 'Setup a validator on etheruem')
   .option('-ap, --application-setup', 'Setup an application on etheruem')
   .option('-s, --submit-rewards', 'Submit daily rewards summary data')
-  .option('-c, --create-wallet', 'Create a new wallet');
+  .option('-c, --create-wallet', 'Create a new wallet')
+  .option('-msv, --multisig-validator-setup', 'Setup a validator on etheruem via multisig wallet')
+  .option('-msap, --multisig-application-setup', 'Setup an application on etheruem via multisig wallet');
 
 program.parse(process.argv);
 
@@ -69,6 +71,24 @@ if (program.syncAll) {
   createNewWallet.generate().then((walletInfo) => {
     console.log(`Generated wallet with following info: ${JSON.stringify(walletInfo)}`);
     process.exit(0);    
+  }).catch((error) => {
+    console.log(error);
+    process.exit(1);
+  });
+} else if (program.multisigValidatorSetup) {
+  const validatorSetup = new ValidatorSetup();  
+  validatorSetup.setup(process.argv[3], process.argv[4], process.argv[5]).then(() => {
+    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}`);
+    process.exit(0);
+  }).catch((error) => {
+    console.log(error);
+    process.exit(1);
+  });
+} else if (program.multisigApplicationSetup) {
+  const applicationSetup = new ApplicationSetup();  
+  applicationSetup.setupViaMultiSig(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
+    console.log(`Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
+    process.exit(0);
   }).catch((error) => {
     console.log(error);
     process.exit(1);
