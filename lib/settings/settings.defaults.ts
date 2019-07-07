@@ -34,6 +34,7 @@ export default () => ({
     submit_rewards_gas: 1280000,
     gas_price: '20', //gwei
     entity_setup_gas: 250000,
+    entity_setup_multisig_gas: 500000,
     localhost_test_contract: '',
   },  
   apidoc_users: {
