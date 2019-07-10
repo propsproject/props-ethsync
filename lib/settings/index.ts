@@ -1,15 +1,15 @@
 const fs = require('fs')
 
 let defaults = {}
-let test = {}
+// let test = {}
 let development = {}
 let staging = {}
 let production = {}
 let playground = {}
 
-if (fs.existsSync(`${__dirname}/settings.test.ts`) || fs.existsSync(`${__dirname}/settings.test.js`)) {
-  test = require(`./settings.test`);
-}
+// if (fs.existsSync(`${__dirname}/settings.test.ts`) || fs.existsSync(`${__dirname}/settings.test.js`)) {
+//   test = require(`./settings.test`);
+// }
 
 if (fs.existsSync(`${__dirname}/settings.defaults.ts`) || fs.existsSync(`${__dirname}/settings.defaults.js`)) {
   defaults = require(`./settings.defaults`);
@@ -32,8 +32,7 @@ if (fs.existsSync(`${__dirname}/settings.staging.ts`) || fs.existsSync(`${__dirn
 }
 
 const settings = {
-  defaults,
-  test,
+  defaults,  
   development,
   playground,
   staging,
