@@ -73,7 +73,7 @@ export default class Sync {
 
     const TokenContract = new this.web3.eth.Contract(JSON.parse(this.abi()),config.settings.ethereum.token_address);
 
-    this.tm.setAccumulateTransactions(true);
+    
 
     while (cont) {
       const list: Transaction[] = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
@@ -155,6 +155,7 @@ export default class Sync {
 
         // Submit the transactions
         for (let address in balanceUpdateTransactions) {
+          this.tm.setAccumulateTransactions(true);
           try {
             const submitResult = await this.tm.submitBalanceUpdateTransaction(
               config.settings.sawtooth.validator.pk,
@@ -166,6 +167,16 @@ export default class Sync {
             );
 
             txCounter = txCounter + 1;
+            if (txCounter % 50 === 0) {
+              const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
+
+              if (submitRes) {
+                AppLogger.log(`Succesfully submitted balance updates for ${txCounter}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+              } else {
+                const msg: string = `Failed submitting balance updates for ${txCounter}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
+                throw new Error(msg);
+              }
+            }
             AppLogger.log(`balanceUpdateTransaction:${JSON.stringify(balanceUpdateTransactions[address])}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
 
             lastBlockNumber = balanceUpdateTransactions[address].blockNumber;
