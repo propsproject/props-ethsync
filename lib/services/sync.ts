@@ -175,7 +175,7 @@ export default class Sync {
             });
             txCounter = txCounter + 1;
                   
-            if (txCounter % 50 === 0) {
+            if (txCounter % 200 === 0) {
               
               const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
