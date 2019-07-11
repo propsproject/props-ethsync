@@ -155,8 +155,9 @@ export default class Sync {
         let balanceUpdateCounter = 0;    
         let balanceUpdateData = [];
         // Submit the transactions
+        this.tm.setAccumulateTransactions(true);
         for (let address in balanceUpdateTransactions) {
-          this.tm.setAccumulateTransactions(true);
+          
           try {
             const submitResult = await this.tm.submitBalanceUpdateTransaction(
               config.settings.sawtooth.validator.pk,
@@ -175,12 +176,12 @@ export default class Sync {
             });
             txCounter = txCounter + 1;
                   
-            if (txCounter % 200 === 0) {
-              
+            if (txCounter % 20 === 0) {
+              const transactionCount = this.tm.getTransactionCountForCommit();
               const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
               if (submitRes) {
-                AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+                AppLogger.log(`Going to commit to sidechain transactions count=${transactionCount}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
                 AppLogger.log(`Succesfully submitted balance updates for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
               } else {
                 const msg: string = `Failed submitting balance updates for for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
