@@ -151,8 +151,9 @@ export default class Sync {
           }
         }
 
-        let lastBlockNumber = fromBlock;
-
+        let lastBlockNumber = fromBlock;    
+        let balanceUpdateCounter = 0;    
+        let balanceUpdateData = [];
         // Submit the transactions
         for (let address in balanceUpdateTransactions) {
           this.tm.setAccumulateTransactions(true);
@@ -165,20 +166,29 @@ export default class Sync {
               balanceUpdateTransactions[address].blockNumber,
               balanceUpdateTransactions[address].timestamp,
             );
-
+            balanceUpdateData.push({
+              address: balanceUpdateTransactions[address].address,
+              balance: balanceUpdateTransactions[address].balance,
+              txHash: balanceUpdateTransactions[address].txHash,
+              blockNumber: balanceUpdateTransactions[address].blockNumber,
+              timestamp: balanceUpdateTransactions[address].timestamp,
+            });
             txCounter = txCounter + 1;
+                  
             if (txCounter % 50 === 0) {
+              
               const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
               if (submitRes) {
-                AppLogger.log(`Succesfully submitted balance updates for ${txCounter}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+                AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+                AppLogger.log(`Succesfully submitted balance updates for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
               } else {
-                const msg: string = `Failed submitting balance updates for ${txCounter}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
+                const msg: string = `Failed submitting balance updates for for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
                 throw new Error(msg);
               }
-            }
-            AppLogger.log(`balanceUpdateTransaction:${JSON.stringify(balanceUpdateTransactions[address])}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
-
+              balanceUpdateCounter += 1;
+              balanceUpdateData = [];
+            }            
             lastBlockNumber = balanceUpdateTransactions[address].blockNumber;
           } catch (error) {
             AppLogger.log(`Failed to submit balance update for ${txCounter} (out of ${totalTx}) error=${error.message} event=${JSON.stringify(event)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'donald', 1, 0, 0, {}, error);
@@ -193,9 +203,9 @@ export default class Sync {
           const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
           if (submitRes) {
-            AppLogger.log(`Succesfully submitted balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+            AppLogger.log(`Succesfully submitted balance updates and new eth block ${toBlock} for batch#${balanceUpdateCounter}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           } else {
-            const msg: string = `Failed submitting balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
+            const msg: string = `Failed submitting balance updates and new eth block ${toBlock}, for batch#${balanceUpdateCounter}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
             throw new Error(msg);
           }
 
