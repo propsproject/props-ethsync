@@ -26,7 +26,7 @@ export default () => ({
     token_address: process.env.PROPS_TOKEN_CONTRACT_ADDRESS,
     token_deployment_block: process.env.PROPS_TOKEN_DEPLOYED_BLOCK,
     confirmation_blocks: process.env.ETHEREUM_CONFIRMATION_BLOCKS,
-    block_to_process_per_minute: 15,
+    block_to_process_per_minute: process.env.ETHEREUM_BLOCKS_TO_PROCESS_PER_JOB ? process.env.ETHEREUM_BLOCKS_TO_PROCESS_PER_JOB : 20,
     max_blocks_to_process: 500,
     validator_pk: process.env.VALIDATOR_SUBMISSION_PK,
     seconds_in_day: process.env.SECONDS_IN_DAY ? process.env.SECONDS_IN_DAY : 86400,
