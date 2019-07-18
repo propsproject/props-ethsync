@@ -90,7 +90,7 @@ export default class Sync {
           cont = false;
         }
 
-        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
+        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { gap: (ethBlockNumber - fromBlock)});
 
         // Get the start time for measuring the time remaining
         let startTime = new Date().getTime() / 1000;
