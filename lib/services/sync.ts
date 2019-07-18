@@ -225,7 +225,7 @@ export default class Sync {
         try {
           this.tm.setAccumulateTransactions(false);
           await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
+          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { gap: (ethBlockNumber - fromBlock)});
         } catch (error) {
           throw error;
         }
