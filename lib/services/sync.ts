@@ -2,10 +2,8 @@ import BigNumber from 'bignumber.js';
 import { TransactionManager } from 'propskit';
 const { AppLogger } = require('props-lib-logger');
 const Web3 = require('web3');
-const lockfile = require('proper-lockfile');
 
 import config from '../config';
-import utils from '../utils/utils';
 import EtherscanApi from './etherscan_api';
 import Transaction from '../models/transaction';
 
@@ -19,7 +17,7 @@ export default class Sync {
 
   async getSidechainEthBlock(): Promise<number> {
     try {
-      let latestSidechainSynchedEthBlockId = await this.tm.getLatestEthBlockId();
+      const latestSidechainSynchedEthBlockId = await this.tm.getLatestEthBlockId();
       return latestSidechainSynchedEthBlockId;
     } catch (error) {
       AppLogger.log(`Failed to fetch the latest eth block from the sidechain`, 'SYNC_REQUEST_START_ERROR', 'donald', 1, 0, 0, {}, error);
@@ -54,7 +52,7 @@ export default class Sync {
         return false;
       }
 
-      if (fromBlock == 1) {
+      if (fromBlock === 1) {
         fromBlock = parseInt(config.settings.ethereum.token_deployment_block, 10) + 1; // The first block is the contract itself
         AppLogger.log(`Looks like we didn't store any latest eth blocks on the sidechain yet, going to start from ${fromBlock}, fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
       } else {
@@ -73,7 +71,7 @@ export default class Sync {
 
     const TokenContract = new this.web3.eth.Contract(JSON.parse(this.abi()),config.settings.ethereum.token_address);
 
-    
+    this.tm.setAccumulateTransactions(true);
 
     while (cont) {
       const list: Transaction[] = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
@@ -90,7 +88,7 @@ export default class Sync {
           cont = false;
         }
 
-        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { gap: (ethBlockNumber - fromBlock)});
+        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
 
         // Get the start time for measuring the time remaining
         let startTime = new Date().getTime() / 1000;
@@ -104,7 +102,7 @@ export default class Sync {
         // Go over each transaction and add them to the transactions list
         for (let x = 0; x < list.length; x += 1) {
 
-          if (x % batchSize == 0 && x > 0) {
+          if (x % batchSize === 0 && x > 0) {
 
             // Get the current time after 50 transactions
             const currentTime = new Date().getTime() / 1000;
@@ -151,12 +149,10 @@ export default class Sync {
           }
         }
 
-        let lastBlockNumber = fromBlock;    
-        let balanceUpdateCounter = 0;    
-        let balanceUpdateData = [];
+        let lastBlockNumber = fromBlock;
+
         // Submit the transactions
-        for (let address in balanceUpdateTransactions) {
-          this.tm.setAccumulateTransactions(true);
+        for (const address in balanceUpdateTransactions) {
           try {
             const submitResult = await this.tm.submitBalanceUpdateTransaction(
               config.settings.sawtooth.validator.pk,
@@ -166,29 +162,10 @@ export default class Sync {
               balanceUpdateTransactions[address].blockNumber,
               balanceUpdateTransactions[address].timestamp,
             );
-            balanceUpdateData.push({
-              address: balanceUpdateTransactions[address].address,
-              balance: balanceUpdateTransactions[address].balance,
-              txHash: balanceUpdateTransactions[address].txHash,
-              blockNumber: balanceUpdateTransactions[address].blockNumber,
-              timestamp: balanceUpdateTransactions[address].timestamp,
-            });
-            txCounter = txCounter + 1;
-                  
-            if (txCounter % 200 === 0) {
-              
-              const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
-              if (submitRes) {
-                AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
-                AppLogger.log(`Succesfully submitted balance updates for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
-              } else {
-                const msg: string = `Failed submitting balance updates for for batch#${balanceUpdateCounter}, updates=${JSON.stringify(balanceUpdateData)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
-                throw new Error(msg);
-              }
-              balanceUpdateCounter += 1;
-              balanceUpdateData = [];
-            }            
+            txCounter = txCounter + 1;
+            AppLogger.log(`balanceUpdateTransaction:${JSON.stringify(balanceUpdateTransactions[address])}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
+
             lastBlockNumber = balanceUpdateTransactions[address].blockNumber;
           } catch (error) {
             AppLogger.log(`Failed to submit balance update for ${txCounter} (out of ${totalTx}) error=${error.message} event=${JSON.stringify(event)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'donald', 1, 0, 0, {}, error);
@@ -203,9 +180,9 @@ export default class Sync {
           const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
           if (submitRes) {
-            AppLogger.log(`Succesfully submitted balance updates and new eth block ${toBlock} for batch#${balanceUpdateCounter}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+            AppLogger.log(`Succesfully submitted balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           } else {
-            const msg: string = `Failed submitting balance updates and new eth block ${toBlock}, for batch#${balanceUpdateCounter}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
+            const msg: string = `Failed submitting balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
             throw new Error(msg);
           }
 
@@ -216,7 +193,7 @@ export default class Sync {
 
         ethBlockNumber = await this.web3.eth.getBlockNumber();
         fromBlock = lastBlockNumber + 1;
-        toBlock = ethBlockNumber - parseInt(config.settings.ethereum.confirmation_blocks);
+        toBlock = ethBlockNumber - parseInt(config.settings.ethereum.confirmation_blocks, 10);
       } else {
 
         // We didn't get any events between the fromBlock and toBlock, we still want to update the sidechain latest eth block though
@@ -225,7 +202,7 @@ export default class Sync {
         try {
           this.tm.setAccumulateTransactions(false);
           await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { gap: (ethBlockNumber - fromBlock)});
+          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0);
         } catch (error) {
           throw error;
         }
@@ -238,9 +215,8 @@ export default class Sync {
 
   public async storeEthBlockOnSidechain(blockNumber) {
     try {
-      let blockData = await this.web3.eth.getBlock(blockNumber);
-      let latestConfirmedTimestamp = blockData.timestamp;
-      AppLogger.log(`The data for the toBlock number=${blockNumber}, ${JSON.stringify(blockData)}, going to store this on the sidechain`, 'SYNC_REQUEST_START', 'donald', 1, 0, 0, {});
+      const blockData = await this.web3.eth.getBlock(blockNumber);
+      const latestConfirmedTimestamp = blockData.timestamp;
 
       const res = await this.tm.submitNewEthBlockIdTransaction(config.settings.sawtooth.validator.pk, blockNumber, latestConfirmedTimestamp);
     } catch (error) {
