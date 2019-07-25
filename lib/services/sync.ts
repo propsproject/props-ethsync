@@ -75,23 +75,29 @@ export default class Sync {
 
     this.tm.setAccumulateTransactions(true);
 
+    let list: Transaction[];
     while (cont) {
-      const list: Transaction[] = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
+      try {
+        list = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
+      } catch (err) {
+        throw err;
+      }
 
       if (list.length > 0) {
 
         // Some counters
         const balanceUpdateTransactions = [];
-        let txCounter: number = 0;
-        let settleTxCounter: number = 0;
+        let txCounter: number = 0;        
         let totalTx: number = 0;
+        const settlementTransactions = []; // array to hold already submitted to avoid duplicates
 
         // getPropsEvents only returns 10000 results at once, if we get less than 1000 it means we're done and we have all transaction records
         if (list.length < 10000) {
           cont = false;
         }
 
-        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
+        AppLogger.log(`Going to get fromBalance and toBalance for each transaction fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 
+                      'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
 
         // Get the start time for measuring the time remaining
         let startTime = new Date().getTime() / 1000;
@@ -141,30 +147,34 @@ export default class Sync {
             const event = events[i];
             const eventReturnValues  = event.returnValues;
             // submitSettlementTransaction(privateKey, _applicationId: string, _userId: string, _amount: string, _toAddress: string, _fromAddress: string, _txHash: string, _blockId: number, _timestamp: number):Promise<boolean> {
+            const txHashLowercase: string = String(event['transactionHash']).toLowerCase();
             const settleTxData: any = {
               appId: String(eventReturnValues['applicationId']).toLowerCase(),
               userId: this.web3.utils.toUtf8(eventReturnValues['userId']),
               amount: eventReturnValues['amount'],
               to: String(eventReturnValues['to']).toLowerCase(),
               from: String(eventReturnValues['rewardsAddress']).toLowerCase(),
-              txHash: String(event['transactionHash']).toLowerCase(),
+              txHash: txHashLowercase,
               blockNumber: Number(event['blockNumber']),
               timestamp: Number(transaction.timeStamp),
-            }
-                    
-            AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+            };
+            if (!(txHashLowercase in settlementTransactions)) {
+              settlementTransactions[txHashLowercase] = true;
+            
+              AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
 
-            const settlementSubmitResult = await this.tm.submitSettlementTransaction(
-              config.settings.sawtooth.validator.pk,
-              settleTxData.appId,
-              settleTxData.userId,
-              settleTxData.amount,
-              settleTxData.to,
-              settleTxData.from,
-              settleTxData.txHash,
-              settleTxData.blockNumber,
-              settleTxData.timestamp,
-            );            
+              const settlementSubmitResult = await this.tm.submitSettlementTransaction(
+                config.settings.sawtooth.validator.pk,
+                settleTxData.appId,
+                settleTxData.userId,
+                settleTxData.amount,
+                settleTxData.to,
+                settleTxData.from,
+                settleTxData.txHash,
+                settleTxData.blockNumber,
+                settleTxData.timestamp,
+              );            
+            }
           }
 
           // handle transfer events (balance updates)
