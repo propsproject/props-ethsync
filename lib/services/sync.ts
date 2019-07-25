@@ -159,7 +159,7 @@ export default class Sync {
               timestamp: Number(transaction.timeStamp),
             };
             if (!(txHashLowercase in settlementTransactions)) {
-              settlementTransactions[txHashLowercase] = true;
+              settlementTransactions[txHashLowercase] = settleTxData.to;
             
               AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
 
@@ -193,12 +193,15 @@ export default class Sync {
             }
           }
           if (to !== '0x0000000000000000000000000000000000000000') {
-            if (!(to in balanceUpdateTransactions)) {
-              totalTx = totalTx + 1;
-              balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
-            } else {
-              if (balanceUpdateTransactions[to].blockNumber < transaction.blockNumber) {
+            // only do balance update if it was not settlement
+            if (!(String(transaction.hash).toLowerCase() in settlementTransactions && settlementTransactions[String(transaction.hash).toLowerCase()] === to)) {
+              if (!(to in balanceUpdateTransactions)) {
+                totalTx = totalTx + 1;
                 balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
+              } else {
+                if (balanceUpdateTransactions[to].blockNumber < transaction.blockNumber) {
+                  balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
+                }
               }
             }
           }
