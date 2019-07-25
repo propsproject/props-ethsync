@@ -36,7 +36,8 @@ class EtherscanApi {
         for (let x = 0; x < result.result.length; x += 1) {
           list.push(new Transaction(result.result[x]));
         }
-      }       
+      }
+      return list;
     } else if (Number(result.status) === 0) {
       return list;
     }
