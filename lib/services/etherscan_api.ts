@@ -36,8 +36,10 @@ class EtherscanApi {
         for (let x = 0; x < result.result.length; x += 1) {
           list.push(new Transaction(result.result[x]));
         }
+      } else if (Number(result.status) === 0) {
+        return list;
       }
-      return list;
+      
     }
     
     throw new Error('Could not fetch results from etherscan');
