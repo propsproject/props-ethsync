@@ -60,9 +60,15 @@ export default class DailyRewards {
       if (this.currentValidatorPK.length === 0) {
         throw new Error('Missing validator private key');
       }
-
+      
       const currentAccount: any = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
       this.currentValidatorAddress = currentAccount.address;
+      try {
+        const ethBalance:BigNumber = new BigNumber(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
+        AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
+      } catch (error) {
+        AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
+      }
 
       await this.calcRewardsDayData();
       const totalSupplyBlockToUse:number = await this.getBlockNumberOfPreviousRewardsDay();            
