@@ -3,14 +3,13 @@ const _ = require('lodash');
 
 export default () => ({
   sawtooth: {
-    transaction_manager: (() => TransactionManager.getInstance({
+    transaction_manager: () => new TransactionManager({
       familyName: 'pending-earnings',
       familyVersion: '1.0',
-      // https: process.env.SAWTOOTH_REST_HTTPS === 'true',
+      https: process.env.SAWTOOTH_HTTPS === 'true',
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
-
-    })),
+    }),    
     validator:
     {
       pk: process.env.SAWTOOTH_PK,

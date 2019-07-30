@@ -6,7 +6,6 @@ const Web3 = require('web3');
 import config from '../config';
 import EtherscanApi from './etherscan_api';
 import Transaction from '../models/transaction';
-import utils from '../utils/utils';
 import Utils from '../utils/utils';
 
 BigNumber.set({ EXPONENTIAL_AT: 1e+9 });
@@ -34,10 +33,12 @@ export default class Sync {
    */
   async syncAll(fullSync: boolean = false) {
 
-    this.tm = config.settings.sawtooth.transaction_manager();
+    
 
     // Get the block number on eth
-    let ethBlockNumber = await this.web3.eth.getBlockNumber();
+    
+    const ethBlockNumber = await this.web3.eth.getBlockNumber();
+    AppLogger.log(`syncAll started got ${JSON.stringify(ethBlockNumber)}`, 'SYNC_REQUEST_GET_BLOCK_NUMBER', 'jon', 1, 0, 0);
 
     // If we are doing a full sync, start the sync from the token deployment block, and the toBlock is the current ethereum block - the confirmation blocks (15)
     // For the latest sync, the fromBlock is the eth block stored on the sidechain, and the toBlock is the current ethereum block - the confirmation blocks (15). Just make sure we have enough blocks to process
@@ -80,9 +81,10 @@ export default class Sync {
       try {
         list = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
       } catch (err) {
-        throw err;
+        AppLogger.log(`Could not fetch events from etherscan ${JSON.stringify(err)} fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS_ERRPR', 'jon', 1, 0, 0);
+        return false;
       }
-
+      this.tm = config.settings.sawtooth.transaction_manager();
       if (list.length > 0) {
 
         // Some counters
@@ -90,6 +92,7 @@ export default class Sync {
         let txCounter: number = 0;        
         let totalTx: number = 0;
         const settlementTransactions = []; // array to hold already submitted to avoid duplicates
+        const settlementEventProcessedBlockNumbers = [];
 
         // getPropsEvents only returns 10000 results at once, if we get less than 1000 it means we're done and we have all transaction records
         if (list.length < 10000) {
@@ -141,39 +144,43 @@ export default class Sync {
               txreceipt_status: 1,
             },
           };
-                    
-          const events = await TokenContract.getPastEvents('Settlement', eventFilterOptions);                      
-          for (let i = 0; i < events.length; i += 1) {        
-            const event = events[i];
-            const eventReturnValues  = event.returnValues;
-            // submitSettlementTransaction(privateKey, _applicationId: string, _userId: string, _amount: string, _toAddress: string, _fromAddress: string, _txHash: string, _blockId: number, _timestamp: number):Promise<boolean> {
-            const txHashLowercase: string = String(event['transactionHash']).toLowerCase();
-            const settleTxData: any = {
-              appId: String(eventReturnValues['applicationId']).toLowerCase(),
-              userId: this.web3.utils.toUtf8(eventReturnValues['userId']),
-              amount: eventReturnValues['amount'],
-              to: String(eventReturnValues['to']).toLowerCase(),
-              from: String(eventReturnValues['rewardsAddress']).toLowerCase(),
-              txHash: txHashLowercase,
-              blockNumber: Number(event['blockNumber']),
-              timestamp: Number(transaction.timeStamp),
-            };
-            if (!(txHashLowercase in settlementTransactions)) {
-              settlementTransactions[txHashLowercase] = settleTxData.to;
             
-              AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+          if (!(String(transaction.blockNumber) in settlementEventProcessedBlockNumbers)) {
+            settlementEventProcessedBlockNumbers[String(transaction.blockNumber)] = true;
+          
+            const events = await TokenContract.getPastEvents('Settlement', eventFilterOptions);                      
+            for (let i = 0; i < events.length; i += 1) {        
+              const event = events[i];
+              const eventReturnValues  = event.returnValues;
+              // submitSettlementTransaction(privateKey, _applicationId: string, _userId: string, _amount: string, _toAddress: string, _fromAddress: string, _txHash: string, _blockId: number, _timestamp: number):Promise<boolean> {
+              const txHashLowercase: string = String(event['transactionHash']).toLowerCase();
+              const settleTxData: any = {
+                appId: String(eventReturnValues['applicationId']).toLowerCase(),
+                userId: this.web3.utils.toUtf8(eventReturnValues['userId']),
+                amount: eventReturnValues['amount'],
+                to: String(eventReturnValues['to']).toLowerCase(),
+                from: String(eventReturnValues['rewardsAddress']).toLowerCase(),
+                txHash: txHashLowercase,
+                blockNumber: Number(event['blockNumber']),
+                timestamp: Number(transaction.timeStamp),
+              };
+              if (!(txHashLowercase in settlementTransactions)) {
+                settlementTransactions[txHashLowercase] = settleTxData.to;
+              
+                AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS_SETTLEMENT', 'jon', 1, 0, 0);
 
-              const settlementSubmitResult = await this.tm.submitSettlementTransaction(
-                config.settings.sawtooth.validator.pk,
-                settleTxData.appId,
-                settleTxData.userId,
-                settleTxData.amount,
-                settleTxData.to,
-                settleTxData.from,
-                settleTxData.txHash,
-                settleTxData.blockNumber,
-                settleTxData.timestamp,
-              );            
+                const settlementSubmitResult = await this.tm.submitSettlementTransaction(
+                  config.settings.sawtooth.validator.pk,
+                  settleTxData.appId,
+                  settleTxData.userId,
+                  settleTxData.amount,
+                  settleTxData.to,
+                  settleTxData.from,
+                  settleTxData.txHash,
+                  settleTxData.blockNumber,
+                  settleTxData.timestamp,
+                );            
+              }
             }
           }
 
@@ -227,13 +234,12 @@ export default class Sync {
             lastBlockNumber = balanceUpdateTransactions[address].blockNumber;
           } catch (error) {
             AppLogger.log(`Failed to submit balance update for ${txCounter} (out of ${totalTx}) error=${error.message} event=${JSON.stringify(event)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'donald', 1, 0, 0, {}, error);
-            throw error;
+            return false;
           }
-        }
-
-        await this.storeEthBlockOnSidechain(toBlock);
+        }        
 
         try {
+          await this.storeEthBlockOnSidechain(toBlock);
           AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
@@ -241,15 +247,16 @@ export default class Sync {
             AppLogger.log(`Succesfully submitted balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           } else {
             const msg: string = `Failed submitting balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
-            throw new Error(msg);
+            AppLogger.log(msg, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0);
+            return false;
           }
 
         } catch (error) {
           AppLogger.log(`Failed to submit new eth block update after submitting ${totalTx}) error=${error.message}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
-          throw error;
+          return false;
         }
 
-        ethBlockNumber = await this.web3.eth.getBlockNumber();
+        // ethBlockNumber = await this.web3.eth.getBlockNumber();
         fromBlock = lastBlockNumber + 1;
         toBlock = ethBlockNumber - parseInt(config.settings.ethereum.confirmation_blocks, 10);
       } else {
@@ -262,9 +269,9 @@ export default class Sync {
           await this.storeEthBlockOnSidechain(toBlock);
           AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
         } catch (error) {
-          throw error;
+          AppLogger.log(`Failed to submit new eth block after no events found =${JSON.stringify(error)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
+          return false;
         }
-
       }
     }
 
@@ -273,6 +280,7 @@ export default class Sync {
 
   public async storeEthBlockOnSidechain(blockNumber) {
     try {
+      AppLogger.log(`Getting block data`, 'SYNC_REQUEST_GET_BLOCK_DATA', 'jon', 1, 0, 0);
       const blockData = await this.web3.eth.getBlock(blockNumber);
       const latestConfirmedTimestamp = blockData.timestamp;
 
