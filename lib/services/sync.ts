@@ -36,7 +36,7 @@ export default class Sync {
     
 
     // Get the block number on eth
-    
+    this.tm = config.settings.sawtooth.transaction_manager();
     const ethBlockNumber = await this.web3.eth.getBlockNumber();
     AppLogger.log(`syncAll started got ${JSON.stringify(ethBlockNumber)}`, 'SYNC_REQUEST_GET_BLOCK_NUMBER', 'jon', 1, 0, 0);
 
@@ -74,7 +74,7 @@ export default class Sync {
 
     const TokenContract = new this.web3.eth.Contract(JSON.parse(Utils.abi()),config.settings.ethereum.token_address);
 
-    this.tm.setAccumulateTransactions(true);
+    
 
     let list: Transaction[];
     while (cont) {
@@ -85,6 +85,7 @@ export default class Sync {
         return false;
       }
       this.tm = config.settings.sawtooth.transaction_manager();
+      this.tm.setAccumulateTransactions(true);
       if (list.length > 0) {
 
         // Some counters
