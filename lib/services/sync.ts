@@ -267,8 +267,9 @@ export default class Sync {
 
         try {
           this.tm.setAccumulateTransactions(false);
-          await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
+          const storeRes = await this.storeEthBlockOnSidechain(toBlock);
+          AppLogger.log(`Submitted only new eth block ${JSON.stringify(storeRes)} for fromBlock=${fromBlock}, toBlock=${toBlock} response: ${JSON.stringify(this.tm.getSubmitResponse())}`,
+                        'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
         } catch (error) {
           AppLogger.log(`Failed to submit new eth block after no events found =${JSON.stringify(error)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
           return false;
@@ -286,6 +287,8 @@ export default class Sync {
       const latestConfirmedTimestamp = blockData.timestamp;
 
       const res = await this.tm.submitNewEthBlockIdTransaction(config.settings.sawtooth.validator.pk, blockNumber, latestConfirmedTimestamp);
+      return { blockNumber, timestamp: blockData.timestamp };
+      
     } catch (error) {
       AppLogger.log(`Failed to store the toBlock data on the sidechain`, 'SYNC_REQUEST_START_ERROR', 'donald', 1, 0, 0, {}, error);
       throw error;
