@@ -3,18 +3,17 @@ const _ = require('lodash');
 
 export default () => ({
   sawtooth: {
-    transaction_manager: (() => TransactionManager.getInstance({
+    transaction_manager: () => new TransactionManager({
       familyName: 'pending-earnings',
       familyVersion: '1.0',
       // https: process.env.SAWTOOTH_REST_HTTPS === 'true',
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
-
-    })),
+    }),
     validator:
     {
       pk: process.env.SAWTOOTH_PK,
-      pub: process.env.SAWTOOTH_PUB,      
+      pub: process.env.SAWTOOTH_PUB,
     },
   },
   etherscan: {
@@ -22,7 +21,7 @@ export default () => ({
     url: process.env.ETHERSCAN_URL,
   },
   ethereum: {
-    uri: process.env.ETHEREUM_URL,
+    uri: process.env.ETHEREUM_URL_ETHSYNC,
     token_address: process.env.PROPS_TOKEN_CONTRACT_ADDRESS,
     token_deployment_block: process.env.PROPS_TOKEN_DEPLOYED_BLOCK,
     confirmation_blocks: process.env.ETHEREUM_CONFIRMATION_BLOCKS,
@@ -36,7 +35,7 @@ export default () => ({
     entity_setup_gas: 250000,
     entity_setup_multisig_gas: 500000,
     localhost_test_contract: '',
-  },  
+  },
   apidoc_users: {
     apidoc: {
       username: 'apidoc',

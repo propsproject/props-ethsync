@@ -6,6 +6,7 @@ const Web3 = require('web3');
 import config from '../config';
 import EtherscanApi from './etherscan_api';
 import Transaction from '../models/transaction';
+import Utils from '../utils/utils';
 
 BigNumber.set({ EXPONENTIAL_AT: 1e+9 });
 
@@ -32,10 +33,12 @@ export default class Sync {
    */
   async syncAll(fullSync: boolean = false) {
 
-    this.tm = config.settings.sawtooth.transaction_manager();
+    
 
     // Get the block number on eth
-    let ethBlockNumber = await this.web3.eth.getBlockNumber();
+    this.tm = config.settings.sawtooth.transaction_manager();
+    const ethBlockNumber = await this.web3.eth.getBlockNumber();
+    AppLogger.log(`syncAll started got ${JSON.stringify(ethBlockNumber)}`, 'SYNC_REQUEST_GET_BLOCK_NUMBER', 'jon', 1, 0, 0);
 
     // If we are doing a full sync, start the sync from the token deployment block, and the toBlock is the current ethereum block - the confirmation blocks (15)
     // For the latest sync, the fromBlock is the eth block stored on the sidechain, and the toBlock is the current ethereum block - the confirmation blocks (15). Just make sure we have enough blocks to process
@@ -69,26 +72,36 @@ export default class Sync {
     // As long as cont is true, it means there are more rows to fetch from etherscan, it's returning max 1000 rows
     let cont = true;
 
-    const TokenContract = new this.web3.eth.Contract(JSON.parse(this.abi()),config.settings.ethereum.token_address);
+    const TokenContract = new this.web3.eth.Contract(JSON.parse(Utils.abi()),config.settings.ethereum.token_address);
 
-    this.tm.setAccumulateTransactions(true);
+    
 
+    let list: Transaction[];
     while (cont) {
-      const list: Transaction[] = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
-
+      try {
+        list = await EtherscanApi.getPropsEvents(fromBlock, toBlock);
+      } catch (err) {
+        AppLogger.log(`Could not fetch events from etherscan ${JSON.stringify(err)} fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS_ERRPR', 'jon', 1, 0, 0);
+        return false;
+      }
+      this.tm = config.settings.sawtooth.transaction_manager();
+      this.tm.setAccumulateTransactions(true);
       if (list.length > 0) {
 
         // Some counters
         const balanceUpdateTransactions = [];
-        let txCounter: number = 0;
+        let txCounter: number = 0;        
         let totalTx: number = 0;
+        const settlementTransactions = []; // array to hold already submitted to avoid duplicates
+        const settlementEventProcessedBlockNumbers = [];
 
         // getPropsEvents only returns 10000 results at once, if we get less than 1000 it means we're done and we have all transaction records
         if (list.length < 10000) {
           cont = false;
         }
 
-        AppLogger.log(`Going to get fromBalance and toBalance for each transaction, this will take some time... fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
+        AppLogger.log(`Going to get fromBalance and toBalance for each transaction fromBlock=${fromBlock}, toBlock=${toBlock}, count of transactions=${list.length}`, 
+                      'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
 
         // Get the start time for measuring the time remaining
         let startTime = new Date().getTime() / 1000;
@@ -123,27 +136,80 @@ export default class Sync {
           }
           const transaction: Transaction = list[x];
 
+          // handle settlement events
+          const eventFilterOptions = {
+            fromBlock: transaction.blockNumber,
+            toBlock: transaction.blockNumber,
+            filter: {
+              isError: 0,
+              txreceipt_status: 1,
+            },
+          };
+            
+          if (!(String(transaction.blockNumber) in settlementEventProcessedBlockNumbers)) {
+            settlementEventProcessedBlockNumbers[String(transaction.blockNumber)] = true;
+          
+            const events = await TokenContract.getPastEvents('Settlement', eventFilterOptions);                      
+            for (let i = 0; i < events.length; i += 1) {        
+              const event = events[i];
+              const eventReturnValues  = event.returnValues;
+              // submitSettlementTransaction(privateKey, _applicationId: string, _userId: string, _amount: string, _toAddress: string, _fromAddress: string, _txHash: string, _blockId: number, _timestamp: number):Promise<boolean> {
+              const txHashLowercase: string = String(event['transactionHash']).toLowerCase();
+              const settleTxData: any = {
+                appId: String(eventReturnValues['applicationId']).toLowerCase(),
+                userId: this.web3.utils.toUtf8(eventReturnValues['userId']),
+                amount: eventReturnValues['amount'],
+                to: String(eventReturnValues['to']).toLowerCase(),
+                from: String(eventReturnValues['rewardsAddress']).toLowerCase(),
+                txHash: txHashLowercase,
+                blockNumber: Number(event['blockNumber']),
+                timestamp: Number(transaction.timeStamp),
+              };
+              if (!(txHashLowercase in settlementTransactions)) {
+                settlementTransactions[txHashLowercase] = settleTxData.to;
+              
+                AppLogger.log(`settlementTransaction:${JSON.stringify(settleTxData)}`, 'SYNC_REQUEST_PROCESS_SETTLEMENT', 'jon', 1, 0, 0);
+
+                const settlementSubmitResult = await this.tm.submitSettlementTransaction(
+                  config.settings.sawtooth.validator.pk,
+                  settleTxData.appId,
+                  settleTxData.userId,
+                  settleTxData.amount,
+                  settleTxData.to,
+                  settleTxData.from,
+                  settleTxData.txHash,
+                  settleTxData.blockNumber,
+                  settleTxData.timestamp,
+                );            
+              }
+            }
+          }
+
+          // handle transfer events (balance updates)
           const toBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.to).call({}, transaction.blockNumber));
           const fromBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.from).call({}, transaction.blockNumber));
-          const from = transaction.from;
-          const to = transaction.to;
+          const from = String(transaction.from).toLowerCase();
+          const to = String(transaction.to).toLowerCase();
           if (from !== '0x0000000000000000000000000000000000000000') {
             if (!(from in balanceUpdateTransactions)) {
-              balanceUpdateTransactions[from] = { address: from, balance: fromBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };
+              balanceUpdateTransactions[from] = { address: from, balance: fromBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
               totalTx = totalTx + 1;
             } else {
               if (balanceUpdateTransactions[from].blockNumber < transaction.blockNumber) {
-                balanceUpdateTransactions[from] = { address: from, balance: fromBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };
+                balanceUpdateTransactions[from] = { address: from, balance: fromBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
               }
             }
           }
           if (to !== '0x0000000000000000000000000000000000000000') {
-            if (!(to in balanceUpdateTransactions)) {
-              totalTx = totalTx + 1;
-              balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };
-            } else {
-              if (balanceUpdateTransactions[to].blockNumber < transaction.blockNumber) {
-                balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: transaction.hash };
+            // only do balance update if it was not settlement
+            if (!(String(transaction.hash).toLowerCase() in settlementTransactions && settlementTransactions[String(transaction.hash).toLowerCase()] === to)) {
+              if (!(to in balanceUpdateTransactions)) {
+                totalTx = totalTx + 1;
+                balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
+              } else {
+                if (balanceUpdateTransactions[to].blockNumber < transaction.blockNumber) {
+                  balanceUpdateTransactions[to] = { address: to, balance: toBalance.toString(), blockNumber: transaction.blockNumber, timestamp: transaction.timeStamp, txHash: String(transaction.hash).toLowerCase() };
+                }
               }
             }
           }
@@ -169,13 +235,12 @@ export default class Sync {
             lastBlockNumber = balanceUpdateTransactions[address].blockNumber;
           } catch (error) {
             AppLogger.log(`Failed to submit balance update for ${txCounter} (out of ${totalTx}) error=${error.message} event=${JSON.stringify(event)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'donald', 1, 0, 0, {}, error);
-            throw error;
+            return false;
           }
-        }
-
-        await this.storeEthBlockOnSidechain(toBlock);
+        }        
 
         try {
+          await this.storeEthBlockOnSidechain(toBlock);
           AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
@@ -183,15 +248,16 @@ export default class Sync {
             AppLogger.log(`Succesfully submitted balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
           } else {
             const msg: string = `Failed submitting balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
-            throw new Error(msg);
+            AppLogger.log(msg, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0);
+            return false;
           }
 
         } catch (error) {
           AppLogger.log(`Failed to submit new eth block update after submitting ${totalTx}) error=${error.message}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
-          throw error;
+          return false;
         }
 
-        ethBlockNumber = await this.web3.eth.getBlockNumber();
+        // ethBlockNumber = await this.web3.eth.getBlockNumber();
         fromBlock = lastBlockNumber + 1;
         toBlock = ethBlockNumber - parseInt(config.settings.ethereum.confirmation_blocks, 10);
       } else {
@@ -201,12 +267,13 @@ export default class Sync {
 
         try {
           this.tm.setAccumulateTransactions(false);
-          await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`No events founds for fromBlock=${fromBlock}, toBlock=${toBlock}`, 'SYNC_REQUEST_PROCESS', 'donald', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
+          const storeRes = await this.storeEthBlockOnSidechain(toBlock);
+          AppLogger.log(`Submitted only new eth block ${JSON.stringify(storeRes)} for fromBlock=${fromBlock}, toBlock=${toBlock} response: ${JSON.stringify(this.tm.getSubmitResponse())}`,
+                        'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
         } catch (error) {
-          throw error;
+          AppLogger.log(`Failed to submit new eth block after no events found =${JSON.stringify(error)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
+          return false;
         }
-
       }
     }
 
@@ -215,19 +282,17 @@ export default class Sync {
 
   public async storeEthBlockOnSidechain(blockNumber) {
     try {
+      AppLogger.log(`Getting block data`, 'SYNC_REQUEST_GET_BLOCK_DATA', 'jon', 1, 0, 0);
       const blockData = await this.web3.eth.getBlock(blockNumber);
       const latestConfirmedTimestamp = blockData.timestamp;
 
       const res = await this.tm.submitNewEthBlockIdTransaction(config.settings.sawtooth.validator.pk, blockNumber, latestConfirmedTimestamp);
+      return { blockNumber, timestamp: blockData.timestamp };
+      
     } catch (error) {
       AppLogger.log(`Failed to store the toBlock data on the sidechain`, 'SYNC_REQUEST_START_ERROR', 'donald', 1, 0, 0, {}, error);
       throw error;
     }
-  }
-
-  abi(): string {
-    // tslint:disable-next-line:max-line-length
-    return '[ { "constant": true, "inputs": [], "name": "name", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "spender", "type": "address" }, { "name": "value", "type": "uint256" } ], "name": "approve", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_token", "type": "address" }, { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "getTransferPreSignedHash", "outputs": [ { "name": "", "type": "bytes32" } ], "payable": false, "stateMutability": "pure", "type": "function" }, { "constant": false, "inputs": [ { "name": "_signature", "type": "bytes" }, { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "transferPreSigned", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_token", "type": "address" }, { "name": "_spender", "type": "address" }, { "name": "_addedValue", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "getIncreaseAllowancePreSignedHash", "outputs": [ { "name": "", "type": "bytes32" } ], "payable": false, "stateMutability": "pure", "type": "function" }, { "constant": true, "inputs": [], "name": "totalSupply", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "from", "type": "address" }, { "name": "to", "type": "address" }, { "name": "value", "type": "uint256" } ], "name": "transferFrom", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "decimals", "outputs": [ { "name": "", "type": "uint8" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "spender", "type": "address" }, { "name": "addedValue", "type": "uint256" } ], "name": "increaseAllowance", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "canTransferBeforeStartTime", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "_token", "type": "address" }, { "name": "_spender", "type": "address" }, { "name": "_subtractedValue", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "getDecreaseAllowancePreSignedHash", "outputs": [ { "name": "", "type": "bytes32" } ], "payable": false, "stateMutability": "pure", "type": "function" }, { "constant": false, "inputs": [ { "name": "_signature", "type": "bytes" }, { "name": "_spender", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "approvePreSigned", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "owner", "type": "address" } ], "name": "balanceOf", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "_token", "type": "address" }, { "name": "_spender", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "getApprovePreSignedHash", "outputs": [ { "name": "", "type": "bytes32" } ], "payable": false, "stateMutability": "pure", "type": "function" }, { "constant": true, "inputs": [], "name": "symbol", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "spender", "type": "address" }, { "name": "subtractedValue", "type": "uint256" } ], "name": "decreaseAllowance", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_token", "type": "address" }, { "name": "_from", "type": "address" }, { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "getTransferFromPreSignedHash", "outputs": [ { "name": "", "type": "bytes32" } ], "payable": false, "stateMutability": "pure", "type": "function" }, { "constant": false, "inputs": [ { "name": "to", "type": "address" }, { "name": "value", "type": "uint256" } ], "name": "transfer", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_signature", "type": "bytes" }, { "name": "_from", "type": "address" }, { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "transferFromPreSigned", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "transfersStartTime", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "owner", "type": "address" }, { "name": "spender", "type": "address" } ], "name": "allowance", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_signature", "type": "bytes" }, { "name": "_spender", "type": "address" }, { "name": "_subtractedValue", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "decreaseAllowancePreSigned", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_signature", "type": "bytes" }, { "name": "_spender", "type": "address" }, { "name": "_addedValue", "type": "uint256" }, { "name": "_fee", "type": "uint256" }, { "name": "_nonce", "type": "uint256" } ], "name": "increaseAllowancePreSigned", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "from", "type": "address" }, { "indexed": true, "name": "to", "type": "address" }, { "indexed": true, "name": "delegate", "type": "address" }, { "indexed": false, "name": "amount", "type": "uint256" }, { "indexed": false, "name": "fee", "type": "uint256" } ], "name": "TransferPreSigned", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "from", "type": "address" }, { "indexed": true, "name": "to", "type": "address" }, { "indexed": true, "name": "delegate", "type": "address" }, { "indexed": false, "name": "amount", "type": "uint256" }, { "indexed": false, "name": "fee", "type": "uint256" } ], "name": "ApprovalPreSigned", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "from", "type": "address" }, { "indexed": true, "name": "to", "type": "address" }, { "indexed": false, "name": "value", "type": "uint256" } ], "name": "Transfer", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "owner", "type": "address" }, { "indexed": true, "name": "spender", "type": "address" }, { "indexed": false, "name": "value", "type": "uint256" } ], "name": "Approval", "type": "event" }, { "constant": false, "inputs": [ { "name": "name", "type": "string" }, { "name": "symbol", "type": "string" }, { "name": "decimals", "type": "uint8" } ], "name": "initialize", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_holder", "type": "address" }, { "name": "_transfersStartTime", "type": "uint256" } ], "name": "initialize", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "start", "type": "uint256" }, { "name": "account", "type": "address" } ], "name": "initialize", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" } ]';
-  }
+  }  
 }
 
