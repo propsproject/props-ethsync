@@ -9,6 +9,8 @@ export default () => ({
       // https: process.env.SAWTOOTH_REST_HTTPS === 'true',
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
+      rewardsStartTimestamp: process.env.REWARDS_START_TIMESTAMP ? process.env.REWARDS_START_TIMESTAMP : 1562803200,
+      secondsInDay: process.env.SECONDS_IN_DAY ? process.env.SECONDS_IN_DAY : 86400,      
     }),
     validator:
     {
