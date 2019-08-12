@@ -78,6 +78,11 @@ export default class DailyRewards {
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
         if (this.rewardsContractData.applications.length === 1) {
+
+          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, this.rewardsContractData.applications[0]);
+          const activityOnChain = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 2);
+          console.log(`activityOnChain=${JSON.stringify(activityOnChain)}`);
+          process.exit(0);
           const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
