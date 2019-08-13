@@ -38,6 +38,11 @@ export default () => ({
     entity_setup_multisig_gas: 500000,
     localhost_test_contract: '',
   },
+  rewards: {
+    totalCoefficient: process.env.REWARDS_CALC_TOTAL_COEFFICIENT ? process.env.REWARDS_CALC_TOTAL_COEFFICIENT : 0.25,
+    medianCoefficient: process.env.REWARDS_CALC_MEDIAN_COEFFICIENT ? process.env.REWARDS_CALC_MEDIAN_COEFFICIENT : 0.15,
+    userCoefficient: process.env.REWARDS_CALC_USER_COEFFICIENT ? process.env.REWARDS_CALC_USER_COEFFICIENT : 0.6,
+  },
   apidoc_users: {
     apidoc: {
       username: 'apidoc',

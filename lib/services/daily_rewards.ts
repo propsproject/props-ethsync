@@ -1,10 +1,9 @@
-import BigNumber from 'bignumber.js';
+import Decimal from 'decimal.js';
 import { TransactionManager } from 'propskit';
 const { AppLogger } = require('props-lib-logger');
-const PrivateKeyProvider = require('truffle-privatekey-provider');
 const Web3 = require('web3');
 const { soliditySha3 } = require('web3-utils');
-BigNumber.set({ EXPONENTIAL_AT: 1e+9 });
+Decimal.set({ toExpPos: 9e15 });
 
 import config from '../config';
 import Utils from '../utils/utils';
@@ -22,10 +21,10 @@ interface RewardsDayTimeData {
 interface RewardsContractData {
   applications:string[];
   validators:string[];
-  maxTotalSupply:BigNumber;
-  totalSupply:BigNumber;
-  applicationRewardsPphm:BigNumber;
-  applicationRewardsMaxVariationPphm:BigNumber;
+  maxTotalSupply:Decimal;
+  totalSupply:Decimal;
+  applicationRewardsPphm:Decimal;
+  applicationRewardsMaxVariationPphm:Decimal;
 }
 
 export default class DailyRewards {
@@ -44,27 +43,22 @@ export default class DailyRewards {
     try {
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
-      // setup web3 provider with private key
-      let provider;
+      // setup web3 provider with private key      
       this.currentValidatorPK = config.settings.ethereum.validator_pk;
       console.log(`config.settings.ethereum.localhost_test_contract=${config.settings.ethereum.localhost_test_contract}, length=${config.settings.ethereum.localhost_test_contract.length}`);
-      if (config.settings.ethereum.localhost_test_contract.length > 0) {
-        provider = new PrivateKeyProvider(this.currentValidatorPK, 'http://localhost:8545');
-      } else {
-        provider = new PrivateKeyProvider(this.currentValidatorPK, config.settings.ethereum.uri);
-      }
-
-      this.web3 = new Web3(provider);
+      this.web3 = new Web3(new Web3.providers.HttpProvider(config.settings.ethereum.uri));      
+      const currentAccount = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
+      console.log(`currentAccount.address=${currentAccount.address}`);
+      this.web3.eth.accounts.wallet.add(currentAccount);
+      this.web3.eth.defaultAccount = currentAccount.address;
       this.contractAddress =  config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
       this.tokenContract = new this.web3.eth.Contract(JSON.parse(Utils.abi()), this.contractAddress);
       if (this.currentValidatorPK.length === 0) {
         throw new Error('Missing validator private key');
-      }
-      
-      const currentAccount: any = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
+      }            
       this.currentValidatorAddress = currentAccount.address;
       try {
-        const ethBalance:BigNumber = new BigNumber(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
+        const ethBalance:Decimal = new Decimal(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
         AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
       } catch (error) {
         AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
@@ -78,16 +72,16 @@ export default class DailyRewards {
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
         if (this.rewardsContractData.applications.length === 1) {
-
-          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, this.rewardsContractData.applications[0]);
-          const activityOnChain = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 2);
+          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, this.rewardsContractData.applications[0].toLowerCase());
+          console.log(`appActivityAddress=${appActivityAddress}, this.rewardsDayData.rewardsDay=${this.rewardsDayData.rewardsDay}, app=${this.rewardsContractData.applications[0].toLowerCase()}`);
+          const activityOnChain = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
           console.log(`activityOnChain=${JSON.stringify(activityOnChain)}`);
           process.exit(0);
           const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
-            .integerValue(BigNumber.ROUND_DOWN).toString();
+            .floor().toString();
           const rewardsHash = soliditySha3(
             this.rewardsDayData.rewardsDay,
             this.rewardsContractData.applications.length, // == 1
@@ -179,13 +173,13 @@ export default class DailyRewards {
     }
   }
 
-  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {
-    const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();
+  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {    
+    const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();    
     const validators:string[] = await this.tokenContract.methods.getEntities(1, this.rewardsDayData.rewardsDay).call();
-    const maxTotalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.maxTotalSupply().call());
-    const totalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
-    const applicationRewardsPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
-    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());    
+    const maxTotalSupply:Decimal = new Decimal(await this.tokenContract.methods.maxTotalSupply().call());
+    const totalSupply:Decimal = new Decimal(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
+    const applicationRewardsPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
+    const applicationRewardsMaxVariationPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());        
     this.rewardsContractData = {
       applications,
       validators,
