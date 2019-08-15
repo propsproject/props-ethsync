@@ -38,6 +38,7 @@
     "chai-string": "^1.4.0",
     "commander": "^2.20.0",
     "copy-files": "^0.1.0",
+    "decimal.js": "^10.2.0",
     "ethereum-address": "^0.0.4",
     "ethereumjs-util": "^6.0.0",
     "ethereumjs-wallet": "^0.6.3",

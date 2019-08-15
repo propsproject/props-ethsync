@@ -1,13 +1,13 @@
-import BigNumber from 'bignumber.js';
+import Decimal from 'decimal.js';
 import { TransactionManager } from 'propskit';
 const { AppLogger } = require('props-lib-logger');
-const PrivateKeyProvider = require('truffle-privatekey-provider');
 const Web3 = require('web3');
 const { soliditySha3 } = require('web3-utils');
-BigNumber.set({ EXPONENTIAL_AT: 1e+9 });
+Decimal.set({ toExpPos: 9e15 });
 
 import config from '../config';
 import Utils from '../utils/utils';
+import { AppRewardsCalcuator, Activity } from '../rewards/app_rewards_calculator';
 
 interface RewardsDayTimeData {
   rewardsStartTimestamp:number;
@@ -22,10 +22,10 @@ interface RewardsDayTimeData {
 interface RewardsContractData {
   applications:string[];
   validators:string[];
-  maxTotalSupply:BigNumber;
-  totalSupply:BigNumber;
-  applicationRewardsPphm:BigNumber;
-  applicationRewardsMaxVariationPphm:BigNumber;
+  maxTotalSupply:Decimal;
+  totalSupply:Decimal;
+  applicationRewardsPphm:Decimal;
+  applicationRewardsMaxVariationPphm:Decimal;
 }
 
 export default class DailyRewards {
@@ -44,27 +44,20 @@ export default class DailyRewards {
     try {
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
-      // setup web3 provider with private key
-      let provider;
-      this.currentValidatorPK = config.settings.ethereum.validator_pk;
-      console.log(`config.settings.ethereum.localhost_test_contract=${config.settings.ethereum.localhost_test_contract}, length=${config.settings.ethereum.localhost_test_contract.length}`);
-      if (config.settings.ethereum.localhost_test_contract.length > 0) {
-        provider = new PrivateKeyProvider(this.currentValidatorPK, 'http://localhost:8545');
-      } else {
-        provider = new PrivateKeyProvider(this.currentValidatorPK, config.settings.ethereum.uri);
-      }
-
-      this.web3 = new Web3(provider);
+      // setup web3 provider with private key      
+      this.currentValidatorPK = config.settings.ethereum.validator_pk;      
+      this.web3 = new Web3(new Web3.providers.HttpProvider(config.settings.ethereum.uri));      
+      const currentAccount = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);      
+      this.web3.eth.accounts.wallet.add(currentAccount);
+      this.web3.eth.defaultAccount = currentAccount.address;
       this.contractAddress =  config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
       this.tokenContract = new this.web3.eth.Contract(JSON.parse(Utils.abi()), this.contractAddress);
       if (this.currentValidatorPK.length === 0) {
         throw new Error('Missing validator private key');
-      }
-      
-      const currentAccount: any = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
+      }            
       this.currentValidatorAddress = currentAccount.address;
       try {
-        const ethBalance:BigNumber = new BigNumber(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
+        const ethBalance:Decimal = new Decimal(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
         AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
       } catch (error) {
         AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
@@ -77,53 +70,72 @@ export default class DailyRewards {
       // check if i am an active validator that should submit
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
-        if (this.rewardsContractData.applications.length === 1) {
-          const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
+        const appRewardsCalc: AppRewardsCalcuator = new AppRewardsCalcuator();
+        const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
-            .integerValue(BigNumber.ROUND_DOWN).toString();
-          const rewardsHash = soliditySha3(
-            this.rewardsDayData.rewardsDay,
-            this.rewardsContractData.applications.length, // == 1
-            1, // only 1 app
-            this.formatArrayForSha3(this.rewardsContractData.applications, 'address'),
-            this.formatArrayForSha3([dailyRewardAmount], 'uint256'),
-          );
-          const submittedData:any = {
-            txHash: '',
-            receipt: '',
-            error: '',
-            submittingValidator: this.currentValidatorAddress,
-            rewardsDay: this.rewardsDayData.rewardsDay,
-            rewardsHash,
-            applications: this.rewardsContractData.applications,
-            amounts: [dailyRewardAmount],
-          };
-          AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
-
-          await this.tokenContract.methods.submitDailyRewards(
-            this.rewardsDayData.rewardsDay,
-            rewardsHash,
-            this.rewardsContractData.applications,
-            [dailyRewardAmount],
-          ).send(
-            { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
-          ).then((receipt) => {
-            submittedData.txHash = receipt.transactionHash;
-            submittedData.receipt = receipt;
-            AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
-          }).catch((error) => {
-            submittedData.error = error;
-            AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
-            throw new Error(error);
-          });
-        } else {
-          // 1. get application users with acitivty for rewards day for all active apps
-          // 2. check each application users balance object if timestamp calculation yields change in next rewards day use the preCutoffBalance object
-          // 3. calculate per algorithm amounts per the active apps
-          // 4. submit
+            .floor().toString();
+        for (let i:number = 0; i < this.rewardsContractData.applications.length; i += 1) {
+          const appId: string = this.rewardsContractData.applications[i].toLowerCase();
+          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, appId);
+          const activityOnChain:Activity[] = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
+          AppLogger.log(`Got activity on chain for app ${appId} found ${activityOnChain.length} records`, 'DAILY_SUMMARY_APP_ACTIVITY', 'jon', 1, 0, 0);          
+          appRewardsCalc.generateSummary(appId, activityOnChain);
+          AppLogger.log(`Calculated summary for app ${appId} ${JSON.stringify(appRewardsCalc.appSummaries[appId])}`, 'DAILY_SUMMARY_APP_ACTIVITY_SUMMARY', 'jon', 1, 0, 0);
         }
+        appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount));
+        const applications: string[] = [];
+        const amounts: string[] = []; // BigNumber
+        
+        for (let i:number = 0; i < appRewardsCalc.apps.length; i += 1) {
+          if (appRewardsCalc.appRewards[appRewardsCalc.apps[i]].greaterThan(0)) {
+            applications.push(appRewardsCalc.apps[i]);
+            amounts.push(appRewardsCalc.appRewards[appRewardsCalc.apps[i]].toString());
+          }
+        }
+                
+        if (applications.length === 0) {
+          const msg:string = `No activity for any application - should not submit`;
+          AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
+          throw new Error(msg);
+        }
+        AppLogger.log(`applications=${JSON.stringify(applications)}, amounts=${JSON.stringify(amounts)}, dailyRewardsAmount=${dailyRewardAmount}`, 'DAILY_SUMMARY_APPS_REWARDS');
+        const rewardsHash = soliditySha3(
+          this.rewardsDayData.rewardsDay,
+          applications.length,
+          amounts.length,
+          this.formatArrayForSha3(applications, 'address'),
+          this.formatArrayForSha3(amounts, 'uint256'),
+        );
+        const submittedData:any = {
+          txHash: '',
+          receipt: '',
+          error: '',
+          submittingValidator: this.currentValidatorAddress,
+          rewardsDay: this.rewardsDayData.rewardsDay,
+          rewardsHash,
+          applications: this.rewardsContractData.applications,
+          amounts: [dailyRewardAmount],
+        };
+        AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
+
+        await this.tokenContract.methods.submitDailyRewards(
+          this.rewardsDayData.rewardsDay,
+          rewardsHash,
+          this.rewardsContractData.applications,
+          [dailyRewardAmount],
+        ).send(
+          { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
+        ).then((receipt) => {
+          submittedData.txHash = receipt.transactionHash;
+          submittedData.receipt = receipt;
+          AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+        }).catch((error) => {
+          submittedData.error = error;
+          AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+          throw new Error(error);
+        });        
       } else {
         const msg:string = `This validator ${this.currentValidatorAddress} is not on the list (${JSON.stringify(this.rewardsContractData.validators)}) thus should not submit`;
         AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
@@ -174,13 +186,13 @@ export default class DailyRewards {
     }
   }
 
-  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {
-    const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();
+  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {    
+    const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();    
     const validators:string[] = await this.tokenContract.methods.getEntities(1, this.rewardsDayData.rewardsDay).call();
-    const maxTotalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.maxTotalSupply().call());
-    const totalSupply:BigNumber = new BigNumber(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
-    const applicationRewardsPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
-    const applicationRewardsMaxVariationPphm:BigNumber = new BigNumber(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());    
+    const maxTotalSupply:Decimal = new Decimal(await this.tokenContract.methods.maxTotalSupply().call());
+    const totalSupply:Decimal = new Decimal(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
+    const applicationRewardsPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
+    const applicationRewardsMaxVariationPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());        
     this.rewardsContractData = {
       applications,
       validators,
