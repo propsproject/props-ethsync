@@ -7,6 +7,7 @@ Decimal.set({ toExpPos: 9e15 });
 
 import config from '../config';
 import Utils from '../utils/utils';
+import { AppRewardsCalcuator, Activity } from '../rewards/app_rewards_calculator';
 
 interface RewardsDayTimeData {
   rewardsStartTimestamp:number;
@@ -44,11 +45,9 @@ export default class DailyRewards {
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
       // setup web3 provider with private key      
-      this.currentValidatorPK = config.settings.ethereum.validator_pk;
-      console.log(`config.settings.ethereum.localhost_test_contract=${config.settings.ethereum.localhost_test_contract}, length=${config.settings.ethereum.localhost_test_contract.length}`);
+      this.currentValidatorPK = config.settings.ethereum.validator_pk;      
       this.web3 = new Web3(new Web3.providers.HttpProvider(config.settings.ethereum.uri));      
-      const currentAccount = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);
-      console.log(`currentAccount.address=${currentAccount.address}`);
+      const currentAccount = this.web3.eth.accounts.privateKeyToAccount(`0x${this.currentValidatorPK}`);      
       this.web3.eth.accounts.wallet.add(currentAccount);
       this.web3.eth.defaultAccount = currentAccount.address;
       this.contractAddress =  config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
@@ -71,58 +70,72 @@ export default class DailyRewards {
       // check if i am an active validator that should submit
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
-        if (this.rewardsContractData.applications.length === 1) {
-          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, this.rewardsContractData.applications[0].toLowerCase());
-          console.log(`appActivityAddress=${appActivityAddress}, this.rewardsDayData.rewardsDay=${this.rewardsDayData.rewardsDay}, app=${this.rewardsContractData.applications[0].toLowerCase()}`);
-          const activityOnChain = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
-          console.log(`activityOnChain=${JSON.stringify(activityOnChain)}`);
-          process.exit(0);
-          const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
+        const appRewardsCalc: AppRewardsCalcuator = new AppRewardsCalcuator();
+        const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
             .floor().toString();
-          const rewardsHash = soliditySha3(
-            this.rewardsDayData.rewardsDay,
-            this.rewardsContractData.applications.length, // == 1
-            1, // only 1 app
-            this.formatArrayForSha3(this.rewardsContractData.applications, 'address'),
-            this.formatArrayForSha3([dailyRewardAmount], 'uint256'),
-          );
-          const submittedData:any = {
-            txHash: '',
-            receipt: '',
-            error: '',
-            submittingValidator: this.currentValidatorAddress,
-            rewardsDay: this.rewardsDayData.rewardsDay,
-            rewardsHash,
-            applications: this.rewardsContractData.applications,
-            amounts: [dailyRewardAmount],
-          };
-          AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
-
-          await this.tokenContract.methods.submitDailyRewards(
-            this.rewardsDayData.rewardsDay,
-            rewardsHash,
-            this.rewardsContractData.applications,
-            [dailyRewardAmount],
-          ).send(
-            { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
-          ).then((receipt) => {
-            submittedData.txHash = receipt.transactionHash;
-            submittedData.receipt = receipt;
-            AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
-          }).catch((error) => {
-            submittedData.error = error;
-            AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
-            throw new Error(error);
-          });
-        } else {
-          // 1. get application users with acitivty for rewards day for all active apps
-          // 2. check each application users balance object if timestamp calculation yields change in next rewards day use the preCutoffBalance object
-          // 3. calculate per algorithm amounts per the active apps
-          // 4. submit
+        for (let i:number = 0; i < this.rewardsContractData.applications.length; i += 1) {
+          const appId: string = this.rewardsContractData.applications[i].toLowerCase();
+          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, appId);
+          const activityOnChain:Activity[] = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
+          AppLogger.log(`Got activity on chain for app ${appId} found ${activityOnChain.length} records`, 'DAILY_SUMMARY_APP_ACTIVITY', 'jon', 1, 0, 0);          
+          appRewardsCalc.generateSummary(appId, activityOnChain);
+          AppLogger.log(`Calculated summary for app ${appId} ${JSON.stringify(appRewardsCalc.appSummaries[appId])}`, 'DAILY_SUMMARY_APP_ACTIVITY_SUMMARY', 'jon', 1, 0, 0);
         }
+        appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount));
+        const applications: string[] = [];
+        const amounts: string[] = []; // BigNumber
+        
+        for (let i:number = 0; i < appRewardsCalc.apps.length; i += 1) {
+          if (appRewardsCalc.appRewards[appRewardsCalc.apps[i]].greaterThan(0)) {
+            applications.push(appRewardsCalc.apps[i]);
+            amounts.push(appRewardsCalc.appRewards[appRewardsCalc.apps[i]].toString());
+          }
+        }
+                
+        if (applications.length === 0) {
+          const msg:string = `No activity for any application - should not submit`;
+          AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
+          throw new Error(msg);
+        }
+        AppLogger.log(`applications=${JSON.stringify(applications)}, amounts=${JSON.stringify(amounts)}, dailyRewardsAmount=${dailyRewardAmount}`, 'DAILY_SUMMARY_APPS_REWARDS');
+        const rewardsHash = soliditySha3(
+          this.rewardsDayData.rewardsDay,
+          applications.length,
+          amounts.length,
+          this.formatArrayForSha3(applications, 'address'),
+          this.formatArrayForSha3(amounts, 'uint256'),
+        );
+        const submittedData:any = {
+          txHash: '',
+          receipt: '',
+          error: '',
+          submittingValidator: this.currentValidatorAddress,
+          rewardsDay: this.rewardsDayData.rewardsDay,
+          rewardsHash,
+          applications: this.rewardsContractData.applications,
+          amounts: [dailyRewardAmount],
+        };
+        AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
+
+        await this.tokenContract.methods.submitDailyRewards(
+          this.rewardsDayData.rewardsDay,
+          rewardsHash,
+          this.rewardsContractData.applications,
+          [dailyRewardAmount],
+        ).send(
+          { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
+        ).then((receipt) => {
+          submittedData.txHash = receipt.transactionHash;
+          submittedData.receipt = receipt;
+          AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+        }).catch((error) => {
+          submittedData.error = error;
+          AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+          throw new Error(error);
+        });        
       } else {
         const msg:string = `This validator ${this.currentValidatorAddress} is not on the list (${JSON.stringify(this.rewardsContractData.validators)}) thus should not submit`;
         AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
