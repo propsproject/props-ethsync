@@ -6,7 +6,7 @@ export default () => ({
     transaction_manager: () => new TransactionManager({
       familyName: 'pending-earnings',
       familyVersion: '1.0',
-      // https: process.env.SAWTOOTH_REST_HTTPS === 'true',
+      https: process.env.SAWTOOTH_REST_HTTPS === 'true',
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
       rewardsStartTimestamp: process.env.REWARDS_START_TIMESTAMP ? process.env.REWARDS_START_TIMESTAMP : 1562803200,
