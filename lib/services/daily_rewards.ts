@@ -115,16 +115,16 @@ export default class DailyRewards {
           submittingValidator: this.currentValidatorAddress,
           rewardsDay: this.rewardsDayData.rewardsDay,
           rewardsHash,
-          applications: this.rewardsContractData.applications,
-          amounts: [dailyRewardAmount],
+          applications,
+          amounts,
         };
         AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
 
         await this.tokenContract.methods.submitDailyRewards(
           this.rewardsDayData.rewardsDay,
           rewardsHash,
-          this.rewardsContractData.applications,
-          [dailyRewardAmount],
+          applications,
+          amounts,
         ).send(
           { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
         ).then((receipt) => {
@@ -162,7 +162,7 @@ export default class DailyRewards {
       let currentDif = guestimateBlockData.timestamp - this.rewardsDayData.previousDayRewardsDayTimestamp;
       let requestsCount = 0;
       // console.log(`guestimateBlockData.timestamp=${guestimateBlockData.timestamp}, guestimateBlockNumber=${guestimateBlockNumber}, minDif=${minDif}, currentDif=${currentDif}, requestsCount=${requestsCount}`);
-      while(Math.abs(currentDif) < minDif) {
+      while (Math.abs(currentDif) < minDif) {
         const previousMinDif = minDif;
         minDif = Math.abs(currentDif);
         if (minDif < previousMinDif) {
