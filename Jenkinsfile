@@ -211,6 +211,17 @@ def pushImage(service, environment) {
     sh 'eval $(aws ecr get-login --region us-east-1 --no-include-email)'
     sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${remoteTag}"
     sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:latest"
+
+    if (environment == 'production') {
+        sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:latest"
+        withDockerRegistry([ credentialsId: "6544de7e-17a4-4576-9b9b-e86bc1e4f903", url: "" ]) {
+          sh 'docker push bpropsprojectservices/props-ethsync:latest'
+        }
+    } else {
+        sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:${environment}"
+        withDockerRegistry([ credentialsId: "dockerhub", url: "" ]) {
+          sh 'docker push bpropsprojectservices/props-ethsync:latest'
+        }
   }
 }
 
