@@ -1,12 +1,12 @@
 FROM node:8.16-slim AS multistage
 WORKDIR /service
+RUN apt-get update && apt-get install -y git python make gcc g++
 ADD . /service
-RUN npm run build
-RUN rm /service/node_modules -r
 ADD yarn.lock /service/yarn.lock
 ADD package.json /service/package.json
-RUN apt-get update && apt-get install -y git python make gcc g++
-RUN yarn upgrade
+RUN rm /service/node_modules -r
+RUN yarn install
+RUN npm run build
 RUN rm /service/lib -rf
 RUN rm /service/dist/settings/settings.development.* || true
 

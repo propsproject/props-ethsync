@@ -1998,6 +1998,11 @@ decamelize@^1.1.1:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/decamelize/-/decamelize-1.2.0.tgz#f6534d15148269b20352e7bee26f501f9a191290"
 
+decimal.js@^10.2.0:
+  version "10.2.0"
+  resolved "https://registry.yarnpkg.com/decimal.js/-/decimal.js-10.2.0.tgz#39466113a9e036111d02f82489b5fd6b0b5ed231"
+  integrity sha512-vDPw+rDgn3bZe1+F/pyEwb1oMG2XTlRVgAa6B4KccTEpYgF8w6eQllVbQcfIJnZyvzFtFpxnpGtx8dd7DJp/Rw==
+
 decode-uri-component@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/decode-uri-component/-/decode-uri-component-0.2.0.tgz#eb3913333458775cb84cd1a1fae062106bb87545"
@@ -5488,9 +5493,10 @@ props-lib-logger@^1.0.10:
     request "^2.79.0"
     request-promise-native "^1.0.3"
 
-propskit@^2.0.5:
-  version "2.0.5"
-  resolved "https://registry.yarnpkg.com/propskit/-/propskit-2.0.5.tgz#9f6b5a912368f1d28b2bb69bd71f06ac5c29a2e6"
+propskit@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/propskit/-/propskit-3.0.1.tgz#62a31e05bf1257454c2191532c4a1fb8f212fbf4"
+  integrity sha512-xS2IYWDJryCfPbHD3DTUPRKpjo8GuoY2zg60RW8HwoNGimPdvBf7L66Lr+zm/QyOAVWnwhv6k6qe+fY+5ERW6A==
   dependencies:
     apidoc "^0.16.1"
     async-wait-until "^1.2.4"

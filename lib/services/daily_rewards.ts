@@ -76,24 +76,24 @@ export default class DailyRewards {
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
             .floor().toString();
-        for (let i:number = 0; i < this.rewardsContractData.applications.length; i += 1) {
-          const appId: string = this.rewardsContractData.applications[i].toLowerCase();
-          const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, appId);
-          const activityOnChain:Activity[] = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
-          AppLogger.log(`Got activity on chain for app ${appId} found ${activityOnChain.length} records`, 'DAILY_SUMMARY_APP_ACTIVITY', 'jon', 1, 0, 0);          
-          appRewardsCalc.generateSummary(appId, activityOnChain);
-          AppLogger.log(`Calculated summary for app ${appId} ${JSON.stringify(appRewardsCalc.appSummaries[appId])}`, 'DAILY_SUMMARY_APP_ACTIVITY_SUMMARY', 'jon', 1, 0, 0);
-        }
+        // for (let i:number = 0; i < this.rewardsContractData.applications.length; i += 1) {
+        //   const appId: string = this.rewardsContractData.applications[i].toLowerCase();
+        //   const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, appId);
+        //   const activityOnChain:Activity[] = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
+        //   AppLogger.log(`Got activity on chain for app ${appId} found ${activityOnChain.length} records`, 'DAILY_SUMMARY_APP_ACTIVITY', 'jon', 1, 0, 0);          
+        //   appRewardsCalc.generateSummary(appId, activityOnChain);
+        //   AppLogger.log(`Calculated summary for app ${appId} ${JSON.stringify(appRewardsCalc.appSummaries[appId])}`, 'DAILY_SUMMARY_APP_ACTIVITY_SUMMARY', 'jon', 1, 0, 0);
+        // }
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount));
-        const applications: string[] = [];
-        const amounts: string[] = []; // BigNumber
+        const applications: string[] = [this.rewardsContractData.applications[0]];
+        const amounts: string[] = [dailyRewardAmount]; // BigNumber
         
-        for (let i:number = 0; i < appRewardsCalc.apps.length; i += 1) {
-          if (appRewardsCalc.appRewards[appRewardsCalc.apps[i]].greaterThan(0)) {
-            applications.push(appRewardsCalc.apps[i]);
-            amounts.push(appRewardsCalc.appRewards[appRewardsCalc.apps[i]].toString());
-          }
-        }
+        // for (let i:number = 0; i < appRewardsCalc.apps.length; i += 1) {
+        //   if (appRewardsCalc.appRewards[appRewardsCalc.apps[i]].greaterThan(0)) {
+        //     applications.push(appRewardsCalc.apps[i]);
+        //     amounts.push(appRewardsCalc.appRewards[appRewardsCalc.apps[i]].toString());
+        //   }
+        // }
                 
         if (applications.length === 0) {
           const msg:string = `No activity for any application - should not submit`;
