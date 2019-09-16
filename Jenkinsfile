@@ -215,12 +215,12 @@ def pushImage(service, environment) {
     if (environment == 'production') {
         sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:latest"
         withDockerRegistry([ credentialsId: "6544de7e-17a4-4576-9b9b-e86bc1e4f903", url: "" ]) {
-          sh 'docker push bpropsprojectservices/props-ethsync:latest'
+          sh 'docker push propsprojectservices/props-ethsync:latest'
         }
     } else {
         sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:${environment}"
         withDockerRegistry([ credentialsId: "dockerhub", url: "" ]) {
-          sh 'docker push bpropsprojectservices/props-ethsync:latest'
+          sh 'docker push propsprojectservices/props-ethsync:latest'
         }
     }
   }
