@@ -222,6 +222,7 @@ def pushImage(service, environment) {
         withDockerRegistry([ credentialsId: "dockerhub", url: "" ]) {
           sh 'docker push bpropsprojectservices/props-ethsync:latest'
         }
+    }
   }
 }
 
