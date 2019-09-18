@@ -1,4 +1,4 @@
-import { Config, settings as coreSettings } from 'props-lib-env';
+import { Config, settings as coreSettings } from 'props-lib-env-temp';
 import settings from './settings/index';
 
 const config = new Config();
