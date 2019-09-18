@@ -27,8 +27,8 @@
     "migrate": "./node_modules/.bin/ sequelize db:migrate --env development --config lib/sequelize/config/config.js --migrations-path lib/sequelize/migrations/ --seeders-path lib/sequelize/seeders"
   },
   "dependencies": {
-    "@types/chai": "^4.1.3",
-    "@types/chai-as-promised": "^7.1.0",
+    "@types/chai": "4.1.3",
+    "@types/chai-as-promised": "7.1.0",
     "@types/node": "^10.12.0",
     "apidoc": "^0.16.1",
     "bignumber.js": "^8.0.1",
