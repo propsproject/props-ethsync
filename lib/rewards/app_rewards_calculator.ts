@@ -64,9 +64,9 @@ class AppRewardsCalcuator {
       const totalsPart: Decimal = this.getTotalsPart(appSum, sumTotal, this.totalCoefficient);
       const medianPart: Decimal = this.getMedianPart(appMedian, medianLogTotal, this.medianCoefficient);
       const usersPart: number = this.getUsersPart(appUsers, usersTotal, this.userCoefficient);
-      // console.log(`************** applicationId=${payload['applications'][i]['app_id']}, ${appSum},${appMedian},${appUsers}`);
+      console.log(`************** applicationId=${payload['applications'][i]['app_id']}, ${appSum},${appMedian},${appUsers}`);
       this.appRewards[payload['applications'][i]['app_id']] = dailyRewardsAmount.times(totalsPart.plus(medianPart).plus(usersPart));
-      // console.log(`************** applicationId=${payload['applications'][i]['app_id']}, rewards=${this.appRewards[payload['applications'][i]['app_id']]}`);
+      console.log(`************** applicationId=${payload['applications'][i]['app_id']}, rewards=${this.appRewards[payload['applications'][i]['app_id']]}`);
     }    
   }
 
