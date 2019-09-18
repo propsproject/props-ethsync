@@ -51,6 +51,7 @@
     "moment-timezone": "^0.5.17",
     "newrelic": "2.5.0",
     "proper-lockfile": "^4.1.1",
+    "props-lib-env": "0.0.2",
     "props-lib-logger": "^1.0.10",
     "propskit": "^3.0.1",
     "request": "^2.88.0",
