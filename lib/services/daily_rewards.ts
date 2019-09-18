@@ -4,6 +4,7 @@ const { AppLogger } = require('props-lib-logger');
 const Web3 = require('web3');
 const { soliditySha3 } = require('web3-utils');
 Decimal.set({ toExpPos: 9e15 });
+import rp = require('request-promise-native');
 
 import config from '../config';
 import Utils from '../utils/utils';
@@ -61,6 +62,7 @@ export default class DailyRewards {
         AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
       } catch (error) {
         AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
+        throw new Error(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`);
       }
 
       await this.calcRewardsDayData();
@@ -76,24 +78,43 @@ export default class DailyRewards {
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
             .floor().toString();
-        // for (let i:number = 0; i < this.rewardsContractData.applications.length; i += 1) {
-        //   const appId: string = this.rewardsContractData.applications[i].toLowerCase();
-        //   const appActivityAddress = this.tm.getApplicationActivityLogDailyAddress(this.rewardsDayData.rewardsDay, appId);
-        //   const activityOnChain:Activity[] = await this.tm.addressLookup(appActivityAddress, 'ACTIVITY_LOG', true, 200);
-        //   AppLogger.log(`Got activity on chain for app ${appId} found ${activityOnChain.length} records`, 'DAILY_SUMMARY_APP_ACTIVITY', 'jon', 1, 0, 0);          
-        //   appRewardsCalc.generateSummary(appId, activityOnChain);
-        //   AppLogger.log(`Calculated summary for app ${appId} ${JSON.stringify(appRewardsCalc.appSummaries[appId])}`, 'DAILY_SUMMARY_APP_ACTIVITY_SUMMARY', 'jon', 1, 0, 0);
-        // }
-        appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount));
-        const applications: string[] = [this.rewardsContractData.applications[0]];
-        const amounts: string[] = [dailyRewardAmount]; // BigNumber
+
+        // get activity summary data from props-state sidechain cache
+        const url = `${config.settings.activity.state_rest_uri}`;
+        AppLogger.log(`Fetching results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY', 'jon', 0, 0, 0, {}, {});
+
+        const options = {
+          url,
+          json: true,
+          method: 'POST',
+          body: {
+            rewards_day: this.rewardsDayData.rewardsDay,
+            applications: this.rewardsContractData.applications,
+          },
+        };
+
+        console.log(`******* options = ${JSON.stringify(options)}`);
+
+        const res = await rp(options);
+        if (Number(res['statusCode']) !== 200) {
+          AppLogger.log(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_ERROR', 'jon', 0, 0, 0, {}, {});
+          throw new Error(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`);
+        } 
+
+        console.log(`******* res = ${JSON.stringify(res)}`);
         
-        // for (let i:number = 0; i < appRewardsCalc.apps.length; i += 1) {
-        //   if (appRewardsCalc.appRewards[appRewardsCalc.apps[i]].greaterThan(0)) {
-        //     applications.push(appRewardsCalc.apps[i]);
-        //     amounts.push(appRewardsCalc.appRewards[appRewardsCalc.apps[i]].toString());
-        //   }
-        // }
+        appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
+        const applications: string[] = this.rewardsContractData.applications;
+        const amounts: string[] = [];// = appRewardsCalc.appRewards;[dailyRewardAmount]; // BigNumber
+        
+        for (let i:number = 0; i < applications.length; i += 1) {          
+          if (applications[i].toLowerCase() in appRewardsCalc.appRewards) {
+            if (appRewardsCalc.appRewards[applications[i].toLowerCase()].greaterThan(0)) {
+              applications.push(applications[i]);
+              amounts.push(appRewardsCalc.appRewards[applications[i].toLowerCase()].toString());
+            }
+          }
+        }
                 
         if (applications.length === 0) {
           const msg:string = `No activity for any application - should not submit`;

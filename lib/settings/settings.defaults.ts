@@ -43,6 +43,9 @@ export default () => ({
     medianCoefficient: process.env.REWARDS_CALC_MEDIAN_COEFFICIENT ? process.env.REWARDS_CALC_MEDIAN_COEFFICIENT : 0.15,
     userCoefficient: process.env.REWARDS_CALC_USER_COEFFICIENT ? process.env.REWARDS_CALC_USER_COEFFICIENT : 0.6,
   },
+  activity: {
+    state_rest_uri: process.env.STATE_API_URI ? process.env.STATE_API_URI : 'https://staging-state.sidechain.propsproject.io/state/activity/summary',
+  },
   apidoc_users: {
     apidoc: {
       username: 'apidoc',
