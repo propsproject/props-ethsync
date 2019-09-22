@@ -106,27 +106,27 @@ export default class DailyRewards {
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
         const applications: string[] = this.rewardsContractData.applications;
         const amounts: string[] = [];// = appRewardsCalc.appRewards;[dailyRewardAmount]; // BigNumber
-        
+        const activeApplications: string[] = [];
         for (let i:number = 0; i < applications.length; i += 1) {          
           if (applications[i].toLowerCase() in appRewardsCalc.appRewards) {
             if (appRewardsCalc.appRewards[applications[i].toLowerCase()].greaterThan(0)) {
-              applications.push(applications[i]);
+              activeApplications.push(applications[i]);
               amounts.push(appRewardsCalc.appRewards[applications[i].toLowerCase()].toString());
             }
           }
         }
                 
-        if (applications.length === 0) {
+        if (activeApplications.length === 0) {
           const msg:string = `No activity for any application - should not submit`;
           AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
           throw new Error(msg);
         }
-        AppLogger.log(`applications=${JSON.stringify(applications)}, amounts=${JSON.stringify(amounts)}, dailyRewardsAmount=${dailyRewardAmount}`, 'DAILY_SUMMARY_APPS_REWARDS');
+        AppLogger.log(`applications=${JSON.stringify(activeApplications)}, amounts=${JSON.stringify(amounts)}, dailyRewardsAmount=${dailyRewardAmount}`, 'DAILY_SUMMARY_APPS_REWARDS');
         const rewardsHash = soliditySha3(
           this.rewardsDayData.rewardsDay,
-          applications.length,
+          activeApplications.length,
           amounts.length,
-          this.formatArrayForSha3(applications, 'address'),
+          this.formatArrayForSha3(activeApplications, 'address'),
           this.formatArrayForSha3(amounts, 'uint256'),
         );
         const submittedData:any = {
