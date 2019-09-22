@@ -9,8 +9,8 @@ export default () => ({
       https: process.env.SAWTOOTH_REST_HTTPS === 'true',
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
-      rewardsStartTimestamp: process.env.REWARDS_START_TIMESTAMP ? process.env.REWARDS_START_TIMESTAMP : 1562803200,
-      secondsInDay: process.env.SECONDS_IN_DAY ? process.env.SECONDS_IN_DAY : 86400,      
+      rewardsStartTimestamp: process.env.REWARDS_START_TIMESTAMP ? Number(process.env.REWARDS_START_TIMESTAMP) : 1562803200,
+      secondsInDay: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,      
     }),
     validator:
     {
@@ -30,8 +30,8 @@ export default () => ({
     block_to_process_per_minute: process.env.ETHEREUM_BLOCKS_TO_PROCESS_PER_JOB ? process.env.ETHEREUM_BLOCKS_TO_PROCESS_PER_JOB : 20,
     max_blocks_to_process: 500,
     validator_pk: process.env.VALIDATOR_SUBMISSION_PK,
-    seconds_in_day: process.env.SECONDS_IN_DAY ? process.env.SECONDS_IN_DAY : 86400,
-    avg_block_time: process.env.AVG_BLOCK_TIME ? process.env.AVG_BLOCK_TIME : 15,
+    seconds_in_day: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,
+    avg_block_time: process.env.AVG_BLOCK_TIME ? Number(process.env.AVG_BLOCK_TIME) : 15,
     submit_rewards_gas: 1280000,
     gas_price: '20', //gwei
     entity_setup_gas: 250000,
@@ -39,9 +39,12 @@ export default () => ({
     localhost_test_contract: '',
   },
   rewards: {
-    totalCoefficient: process.env.REWARDS_CALC_TOTAL_COEFFICIENT ? process.env.REWARDS_CALC_TOTAL_COEFFICIENT : 0.25,
+    totalCoefficient: process.env.REWARDS_CALC_TOTAL_COEFFICIENT ? process.env.REWARDS_CALC_TOTAL_COEFFICIENT : 0.35,
     medianCoefficient: process.env.REWARDS_CALC_MEDIAN_COEFFICIENT ? process.env.REWARDS_CALC_MEDIAN_COEFFICIENT : 0.15,
-    userCoefficient: process.env.REWARDS_CALC_USER_COEFFICIENT ? process.env.REWARDS_CALC_USER_COEFFICIENT : 0.6,
+    userCoefficient: process.env.REWARDS_CALC_USER_COEFFICIENT ? process.env.REWARDS_CALC_USER_COEFFICIENT : 0.5,
+  },
+  activity: {
+    state_rest_uri: process.env.STATE_API_URI ? process.env.STATE_API_URI : 'https://staging-state.sidechain.propsproject.io/state/activity/summary',
   },
   apidoc_users: {
     apidoc: {

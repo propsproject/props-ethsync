@@ -64,7 +64,7 @@ if (program.syncAll) {
     process.exit(0);    
   }).catch((error) => {
     console.log(error);
-    process.exit(0);
+    process.exit(1);
   });
 } else if (program.createWallet) {
   const createNewWallet = new CreateNewWallet();  
