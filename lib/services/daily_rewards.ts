@@ -93,16 +93,12 @@ export default class DailyRewards {
           },
         };
 
-        console.log(`******* options = ${JSON.stringify(options)}`);
-
         const res = await rp(options);
         if (Number(res['statusCode']) !== 200) {
           AppLogger.log(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_ERROR', 'jon', 0, 0, 0, {}, {});
           throw new Error(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`);
         } 
 
-        console.log(`******* res = ${JSON.stringify(res)}`);
-        
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
         const applications: string[] = this.rewardsContractData.applications;
         const amounts: string[] = [];// = appRewardsCalc.appRewards;[dailyRewardAmount]; // BigNumber

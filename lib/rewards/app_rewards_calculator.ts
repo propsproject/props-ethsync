@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js';
 const { AppLogger } = require('props-lib-logger');
-Decimal.set({ toExpPos: 9e15 });
+
 
 import config from '../config';
 
@@ -46,14 +46,14 @@ class AppRewardsCalcuator {
   }
 
   public calcRewards(dailyRewardsAmount: Decimal, payload:any) {
+    Decimal.set({ toExpPos: 9e15 });
     // console.log(`************** payload=${JSON.stringify(payload)}`);
     let sumTotal: Decimal = new Decimal(payload['summary']['props']);
     let medianLogTotal: Decimal = new Decimal(payload['summary']['median_log']);
     const usersTotal: number = Number(payload['summary']['users']);
     
     sumTotal = sumTotal.mul(1e18);
-    medianLogTotal = medianLogTotal.mul(1e18);
-    // console.log(`************** totals=${sumTotal},${medianLogTotal},${usersTotal}`);
+    medianLogTotal = medianLogTotal.mul(1e18);    
     const applicationsCount:number = Number(payload['summary']['applications']);
     for (let i = 0; i < applicationsCount; i += 1) {
       let appSum: Decimal = new Decimal(payload['applications'][i]['props']);
@@ -64,9 +64,10 @@ class AppRewardsCalcuator {
       const totalsPart: Decimal = this.getTotalsPart(appSum, sumTotal, this.totalCoefficient);
       const medianPart: Decimal = this.getMedianPart(appMedian, medianLogTotal, this.medianCoefficient);
       const usersPart: number = this.getUsersPart(appUsers, usersTotal, this.userCoefficient);
-      console.log(`************** applicationId=${payload['applications'][i]['app_id']}, ${appSum},${appMedian},${appUsers}`);
-      this.appRewards[payload['applications'][i]['app_id']] = dailyRewardsAmount.times(totalsPart.plus(medianPart).plus(usersPart));
-      console.log(`************** applicationId=${payload['applications'][i]['app_id']}, rewards=${this.appRewards[payload['applications'][i]['app_id']]}`);
+      // console.log(`******* totalsPart: ${appSum}, ${sumTotal}, ${this.totalCoefficient} => ${totalsPart}`);
+      // console.log(`******* medianPart: ${appMedian}, ${medianLogTotal}, ${this.medianCoefficient} => ${medianPart}`);
+      // console.log(`******* usersPart: ${appUsers}, ${usersTotal}, ${this.userCoefficient} => ${usersPart}`);
+      this.appRewards[payload['applications'][i]['app_id']] = dailyRewardsAmount.times(totalsPart.plus(medianPart).plus(usersPart));      
     }    
   }
 
@@ -76,7 +77,7 @@ class AppRewardsCalcuator {
   }
 
   public getMedianPart(appMedian: Decimal, medianLogSum:Decimal, coefficient: number): Decimal {
-    return (appMedian.plus(1)).logarithm().times(coefficient).div(medianLogSum);
+    return appMedian.times(coefficient).div(medianLogSum);
   }
 
   public getUsersPart(appUsersCount: number, usersTotal: number, coefficient: number): number {
