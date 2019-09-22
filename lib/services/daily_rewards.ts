@@ -98,7 +98,7 @@ export default class DailyRewards {
           AppLogger.log(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_ERROR', 'jon', 0, 0, 0, {}, {});
           throw new Error(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`);
         } 
-
+        AppLogger.log(`Got the following results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_SUCCESS', 'jon', 0, 0, 0, {}, {});
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
         const applications: string[] = this.rewardsContractData.applications;
         const amounts: string[] = [];// = appRewardsCalc.appRewards;[dailyRewardAmount]; // BigNumber
@@ -132,7 +132,7 @@ export default class DailyRewards {
           submittingValidator: this.currentValidatorAddress,
           rewardsDay: this.rewardsDayData.rewardsDay,
           rewardsHash,
-          applications,
+          activeApplications,
           amounts,
         };
         AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
@@ -140,7 +140,7 @@ export default class DailyRewards {
         await this.tokenContract.methods.submitDailyRewards(
           this.rewardsDayData.rewardsDay,
           rewardsHash,
-          applications,
+          activeApplications,
           amounts,
         ).send(
           { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
