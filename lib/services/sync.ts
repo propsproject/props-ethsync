@@ -145,7 +145,10 @@ export default class Sync {
               txreceipt_status: 1,
             },
           };
-            
+          // handle transfer events (balance updates)
+          const toBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.to).call({}, transaction.blockNumber));
+          const fromBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.from).call({}, transaction.blockNumber));
+
           if (!(String(transaction.blockNumber) in settlementEventProcessedBlockNumbers)) {
             settlementEventProcessedBlockNumbers[String(transaction.blockNumber)] = true;
           
@@ -164,6 +167,7 @@ export default class Sync {
                 txHash: txHashLowercase,
                 blockNumber: Number(event['blockNumber']),
                 timestamp: Number(transaction.timeStamp),
+                toBalance: toBalance.toString(),
               };
               if (!(txHashLowercase in settlementTransactions)) {
                 settlementTransactions[txHashLowercase] = settleTxData.to;
@@ -180,14 +184,13 @@ export default class Sync {
                   settleTxData.txHash,
                   settleTxData.blockNumber,
                   settleTxData.timestamp,
+                  settleTxData.toBalance,
                 );            
               }
             }
           }
 
-          // handle transfer events (balance updates)
-          const toBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.to).call({}, transaction.blockNumber));
-          const fromBalance = new BigNumber(await TokenContract.methods.balanceOf(transaction.from).call({}, transaction.blockNumber));
+          
           const from = String(transaction.from).toLowerCase();
           const to = String(transaction.to).toLowerCase();
           if (from !== '0x0000000000000000000000000000000000000000') {
