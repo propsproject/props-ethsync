@@ -43,6 +43,7 @@ export default class DailyRewards {
 
   async calculateAndSubmit() {
     try {
+      AppLogger.log(`calculateAndSubmit version notes: using state-api to get rewards data`, 'SUBMIT_REWARDS', 'jon', 1, 0, 0);
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
       // setup web3 provider with private key      
