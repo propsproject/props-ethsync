@@ -214,7 +214,7 @@ def pushImage(service, environment) {
 
     if (environment == 'production') {
         sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:latest"
-        withDockerRegistry([ credentialsId: "6544de7e-17a4-4576-9b9b-e86bc1e4f903", url: "" ]) {
+        withDockerRegistry([ credentialsId: "propsdockerhub", url: "" ]) {
           sh "docker push propsprojectservices/props-ethsync:latest"
         }
     } else {
@@ -234,8 +234,9 @@ def deployImage(serviceName, environment, cluster, deployments) {
 
       for (int i = 0; i < deployments.size(); i++) {
         def deployment = deployments[i]
-        sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/submit-rewards submit-rewards=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
+        // sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/submit-rewards submit-rewards=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
         sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/sync-transfers sync-transfers=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
+        // sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image cronjob/state-delta-catchup state-delta-catchup=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
         // sh "kubectl --kubeconfig=/var/lib/jenkins/kubeconfig set image deployment/${serviceName}-${deployment} ${serviceName}-${deployment}=774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${env.BUILD_NUMBER}"
       }
   }
