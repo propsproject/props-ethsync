@@ -17,6 +17,7 @@ export default () => ({
       pk: process.env.SAWTOOTH_PK,
       pub: process.env.SAWTOOTH_PUB,
     },
+    submit_retries: process.env.SAWTOOTH_SUBMIT_RETRIES ? Number(process.env.REWARDS_START_TIMESTAMP) : 5,
   },
   etherscan: {
     api_key: process.env.ETHERSCAN_API_KEY,
