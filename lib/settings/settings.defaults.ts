@@ -10,7 +10,7 @@ export default () => ({
       host: process.env.SAWTOOTH_REST_URL,
       port: _.toNumber(process.env.SAWTOOTH_REST_PORT),
       rewardsStartTimestamp: process.env.REWARDS_START_TIMESTAMP ? Number(process.env.REWARDS_START_TIMESTAMP) : 1562803200,
-      secondsInDay: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,      
+      secondsInDay: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,
     }),
     validator:
     {
@@ -34,7 +34,7 @@ export default () => ({
     seconds_in_day: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,
     avg_block_time: process.env.AVG_BLOCK_TIME ? Number(process.env.AVG_BLOCK_TIME) : 15,
     submit_rewards_gas: process.env.SUBMIT_REWARDS_GAS ? Number(process.env.SUBMIT_REWARDS_GAS) : 800000,
-    gas_price: process.env.GAS_PRICE ? Number(process.env.GAS_PRICE) : '20', //gwei
+    gas_price: process.env.GAS_PRICE ? Number(process.env.GAS_PRICE) : '40', //gwei
     entity_setup_gas: 250000,
     entity_setup_multisig_gas: 500000,
     localhost_test_contract: '',
