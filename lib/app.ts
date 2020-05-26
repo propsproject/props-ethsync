@@ -17,7 +17,9 @@ program
   .option('-s, --submit-rewards', 'Submit daily rewards summary data')
   .option('-c, --create-wallet', 'Create a new wallet')
   .option('-msv, --multisig-validator-setup', 'Setup a validator on etheruem via multisig wallet')
-  .option('-msap, --multisig-application-setup', 'Setup an application on etheruem via multisig wallet');
+  .option('-msap, --multisig-application-setup', 'Setup an application on etheruem via multisig wallet')
+  .option('-safev, --safe-validator-setup', 'Setup a validator on etheruem via gnosis safe multisig wallet')
+  .option('-safeap, --safe-application-setup', 'Setup an application on etheruem via gnosis safe multisig wallet');
 
 program.parse(process.argv);
 
@@ -87,6 +89,24 @@ if (program.syncAll) {
 } else if (program.multisigApplicationSetup) {
   const applicationSetup = new ApplicationSetup();  
   applicationSetup.setupViaMultiSig(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
+    console.log(`Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
+    process.exit(0);
+  }).catch((error) => {
+    console.log(error);
+    process.exit(0);
+  });
+} else if (program.safeValidatorSetup) {
+  const validatorSetup = new ValidatorSetup();  
+  validatorSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
+    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
+    process.exit(0);
+  }).catch((error) => {
+    console.log(error);
+    process.exit(0);
+  });
+} else if (program.safeApplicationSetup) {
+  const applicationSetup = new ApplicationSetup();  
+  applicationSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
     console.log(`Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
     process.exit(0);
   }).catch((error) => {
