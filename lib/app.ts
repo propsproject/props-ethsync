@@ -97,8 +97,8 @@ if (program.syncAll) {
   });
 } else if (program.safeValidatorSetup) {
   const validatorSetup = new ValidatorSetup();  
-  validatorSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
-    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
+  validatorSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7], process.argv[8]).then(() => {
+    console.log(`Setup validator with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}, ${process.argv[8]}`);
     process.exit(0);
   }).catch((error) => {
     console.log(error);
@@ -106,8 +106,8 @@ if (program.syncAll) {
   });
 } else if (program.safeApplicationSetup) {
   const applicationSetup = new ApplicationSetup();  
-  applicationSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]).then(() => {
-    console.log(`Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}`);
+  applicationSetup.setupViaSafe(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7], process.argv[8]).then(() => {
+    console.log(`Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}, ${process.argv[8]}`);
     process.exit(0);
   }).catch((error) => {
     console.log(error);
