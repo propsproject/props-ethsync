@@ -15,6 +15,7 @@ export default class Sync {
   tm: TransactionManager;
   web3 = new Web3(config.settings.ethereum.uri);
   releaseLock: any;
+  retryNum: number = 0;
 
   async getSidechainEthBlock(): Promise<number> {
     try {
@@ -86,6 +87,9 @@ export default class Sync {
       }
       this.tm = config.settings.sawtooth.transaction_manager();
       this.tm.setAccumulateTransactions(true);
+      const sleepMS = (milliseconds) => {
+        return new Promise(resolve => setTimeout(resolve, milliseconds));
+      };
       if (list.length > 0) {
 
         // Some counters
@@ -241,23 +245,34 @@ export default class Sync {
             return false;
           }
         }        
+        let submitWithTransactionsSuccess:boolean = false;
+        
+        while (!submitWithTransactionsSuccess) {
+          try {            
+            await this.storeEthBlockOnSidechain(toBlock);
+            AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()} retry=${this.retryNum}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+            const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
 
-        try {
-          await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`Going to commit to sidechain transactions count=${this.tm.getTransactionCountForCommit()}}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
-          const submitRes = await this.tm.commitTransactions(config.settings.sawtooth.validator.pk);
+            if (submitRes) {
+              AppLogger.log(`Succesfully submitted balance updates on retry=${this.retryNum} and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
+              submitWithTransactionsSuccess = true;
+            } else {
+              const msg: string = `Failed submitting balance updates and new eth block on retry=${this.retryNum} for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
+              AppLogger.log(msg, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0);
+              // return false;
+            }
 
-          if (submitRes) {
-            AppLogger.log(`Succesfully submitted balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`, 'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0);
-          } else {
-            const msg: string = `Failed submitting balance updates and new eth block for ${totalTx}) events events=${JSON.stringify(balanceUpdateTransactions)}, submitResponse=${JSON.stringify(this.tm.getSubmitResponse())}`;
-            AppLogger.log(msg, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0);
-            return false;
+          } catch (error) {
+            AppLogger.log(`Failed to submit new eth block update after submitting ${totalTx}) retry=${this.retryNum} error=${error.message}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
+            // return false;
           }
-
-        } catch (error) {
-          AppLogger.log(`Failed to submit new eth block update after submitting ${totalTx}) error=${error.message}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
-          return false;
+          this.retryNum += 1;
+          if (this.retryNum === config.settings.sawtooth.submit_retries) {
+            AppLogger.log(`Max retries with events reached retry=${this.retryNum}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {});
+            return false;
+          } else {
+            await sleepMS(1500 * this.retryNum);
+          }
         }
 
         // ethBlockNumber = await this.web3.eth.getBlockNumber();
@@ -267,15 +282,24 @@ export default class Sync {
 
         // We didn't get any events between the fromBlock and toBlock, we still want to update the sidechain latest eth block though
         cont = false;
-
-        try {
-          this.tm.setAccumulateTransactions(false);
-          const storeRes = await this.storeEthBlockOnSidechain(toBlock);
-          AppLogger.log(`Submitted only new eth block ${JSON.stringify(storeRes)} for fromBlock=${fromBlock}, toBlock=${toBlock} response: ${JSON.stringify(this.tm.getSubmitResponse())}`,
-                        'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
-        } catch (error) {
-          AppLogger.log(`Failed to submit new eth block after no events found =${JSON.stringify(error)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);
-          return false;
+        let submitNoTransactionsSuccess:boolean = false;
+        while (!submitNoTransactionsSuccess) {
+          try {
+            this.tm.setAccumulateTransactions(false);
+            const storeRes = await this.storeEthBlockOnSidechain(toBlock);
+            AppLogger.log(`Submitted only new eth block retry=${this.retryNum} ${JSON.stringify(storeRes)} for fromBlock=${fromBlock}, toBlock=${toBlock} response: ${JSON.stringify(this.tm.getSubmitResponse())}`,
+                          'SYNC_REQUEST_PROCESS', 'jon', 1, 0, 0, { amount: (ethBlockNumber - fromBlock) });
+            submitNoTransactionsSuccess = true;
+          } catch (error) {
+            AppLogger.log(`Failed to submit new eth block on retry=${this.retryNum} after no events found =${JSON.stringify(error)}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {}, error);            
+          }
+          this.retryNum += 1;
+          if (this.retryNum === config.settings.sawtooth.submit_retries) {
+            AppLogger.log(`Max retries no events reached retry=${this.retryNum}`, 'SYNC_REQUEST_PROCESS_ERROR', 'jon', 1, 0, 0, {});
+            return false;
+          } else {
+            await sleepMS(1500 * this.retryNum);
+          }
         }
       }
     }

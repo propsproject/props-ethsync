@@ -2,6 +2,17 @@
 
 ![Props Token](https://propsproject.com/static/images/main-logo.png)
 
+## Prerequisites
+Make sure you have installed all of the following prerequisites on your development machine:
+* Git - [Download & Install Git](https://git-scm.com/downloads). OSX and Linux machines typically have this already installed.
+* Node.js - [Download & Install Node.js](https://nodejs.org/en/download/) and the npm package manager. If you encounter any problems, you can also use this [GitHub Gist]
+* gcc - On redhat based systems use ```yum groupinstall "Development Tools"``` on debian based systems use ```apt-get install build-essential``` (For OSX use xcode)
+
+## Install and Build
+
+```npm install```
+```npm run build```
+
 The tools in this repo are provide functionalites for validator nodes to perform the following operations:
 
 ## Validator Setup

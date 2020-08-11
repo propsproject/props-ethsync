@@ -24,6 +24,7 @@
     "setup-application": "node dist/app.js --application-setup",
     "generate-wallet": "node dist/app.js --create-wallet",
     "fill": "ts-node scripts/default_requests",
+    "postinstall": "echo 'export default (() => ({}));' > lib/settings/settings.development.ts",
     "migrate": "./node_modules/.bin/ sequelize db:migrate --env development --config lib/sequelize/config/config.js --migrations-path lib/sequelize/migrations/ --seeders-path lib/sequelize/seeders"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "@types/chai-as-promised": "7.1.0",
     "@types/node": "^10.12.0",
     "apidoc": "^0.16.1",
+    "axios": "^0.19.2",
     "bignumber.js": "^8.0.1",
     "cbor": "^4.1.1",
     "chai": "^4.1.2",
@@ -40,7 +42,7 @@
     "copy-files": "^0.1.0",
     "decimal.js": "^10.2.0",
     "ethereum-address": "^0.0.4",
-    "ethereumjs-util": "^6.0.0",
+    "ethereumjs-util": "^6.2.0",
     "ethereumjs-wallet": "^0.6.3",
     "google-closure-library": "^20180910.0.0",
     "google-protobuf": "^3.6.1",
@@ -65,7 +67,7 @@
     "ts-node": "^6.0.5",
     "typescript": "^2.8.3",
     "uuid": "^3.1.0",
-    "web3": "1.0.0-beta.35",
+    "web3": "^1.0.0-beta.35",
     "wtfnode": "^0.7.0"
   },
   "devDependencies": {
