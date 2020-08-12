@@ -40,7 +40,7 @@ export default () => ({
     localhost_test_contract: '',
     submit_rewards_retry_time: process.env.SUBMIT_REWARDS_RETRY_TIME ? Number(process.env.SUBMIT_REWARDS_RETRY_TIME) : 10, // seconds - retry after error
     submit_rewards_retry_max: process.env.SUBMIT_REWARDS_RETRY_MAX ? Number(process.env.SUBMIT_REWARDS_RETRY_MAX) : 20, // how many retries until calling it quits
-    submit_rewards_retry_gas_increase: process.env.SUBMIT_REWARDS_RETRY_GAS_INC ? Number(process.env.SUBMIT_REWARDS_RETRY_GAS_INC) : 10, // how many retries until calling it quits
+    submit_rewards_retry_gas_increase: process.env.SUBMIT_REWARDS_RETRY_GAS_INC ? Number(process.env.SUBMIT_REWARDS_RETRY_GAS_INC) : 10, // how much to increment by every retry
   },
   rewards: {
     totalCoefficient: process.env.REWARDS_CALC_TOTAL_COEFFICIENT ? process.env.REWARDS_CALC_TOTAL_COEFFICIENT : 0.35,

@@ -67,9 +67,7 @@ export default class DailyRewards {
       AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
       return true;
     }).catch((error) => {
-      this.submittedData.error = error;
-      AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
-      
+      this.submittedData.error = error;        
       throw new Error(error);
     });  
     return false;
@@ -180,7 +178,7 @@ export default class DailyRewards {
           this.retryNumber += 1;
           try {
             const submitRes: boolean = await this.submitTransaction(rewardsHash, activeApplications, amounts, gasPrice);
-            
+            if (submitRes) break;
           } catch (error) {
             if (String(error).toLowerCase().indexOf('transaction was not mined within') >= 0) {
               AppLogger.log(`Transaction not mined error ${JSON.stringify(error)} txHash=${this.submittedData.txHash} will wait for ${Number(config.settings.ethereum.submit_rewards_retry_time)} seconds`, 
@@ -196,6 +194,7 @@ export default class DailyRewards {
               AppLogger.log(`Nonce was already processed we are done msg=${String(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_DURING_TIMEOUT', 'jon', 1, 0, 0);
               break;
             } else {
+              AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
               throw error;
             }
           }
