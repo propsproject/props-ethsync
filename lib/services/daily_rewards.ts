@@ -50,8 +50,8 @@ export default class DailyRewards {
     });
   }
 
-  async submitTransaction(rewardsHash: string, activeApplications:string[], amounts: string[], gasPrice: string): Promise<boolean> {
-    await this.tokenContract.methods.submitDailyRewards(
+  submitTransaction(rewardsHash: string, activeApplications:string[], amounts: string[], gasPrice: string) {
+    this.tokenContract.methods.submitDailyRewards(
       this.rewardsDayData.rewardsDay,
       rewardsHash,
       activeApplications,
@@ -64,13 +64,17 @@ export default class DailyRewards {
     }).then((receipt) => {
       this.submittedData.txHash = receipt.transactionHash;
       this.submittedData.receipt = receipt;
-      AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
-      return true;
+      AppLogger.log(`Receipt received for ${receipt.transactionHash} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+      console.log(`Calculated and submitted rewards succesfully`);
+      process.exit(0);          
     }).catch((error) => {
-      this.submittedData.error = error;        
-      throw new Error(error);
-    });  
-    return false;
+      this.submittedData.error = error;
+      if (String(error).toLowerCase().indexOf('nonce') >= 0) {
+        AppLogger.log(`Nonce was already processed we are done msg=${String(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_DURING_TIMEOUT', 'jon', 1, 0, 0);
+        console.log(`Calculated and submitted rewards succesfully`);
+        process.exit(0);  
+      }      
+    });      
   }
 
   async calculateAndSubmit() {
@@ -171,38 +175,48 @@ export default class DailyRewards {
           amounts,
         };
         
-        const maxRetries = Number(config.settings.ethereum.submit_rewards_retry_max);
+        const maxRetries = Number(config.settings.ethereum.submit_rewards_retry_max);        
+        
+        let baseGasPrice = Number(config.settings.ethereum.gas_price);
+        const gasOracleUrl:String = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle';        
+        try {
+          
+          const gasOptions = {
+            url: gasOracleUrl,
+            json: true,
+            method: 'GET',
+          };
+          
+          const gasRes = await rp(gasOptions);          
+          AppLogger.log(`Query for gas price from ${gasOracleUrl} => gasPrice=min(${gasRes['result']['ProposeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);          
+          if (process.env.NODE_ENV === 'production') {
+            baseGasPrice = Math.min(Number(gasRes['result']['ProposeGasPrice']), 1500);
+          } else {
+            AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);          
+          }          
+        } catch (error) {
+          AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
+        }
+        
         do {
-          const gasPrice = Number(Number(config.settings.ethereum.gas_price) + (this.retryNumber * Number(config.settings.ethereum.submit_rewards_retry_gas_increase))).toFixed(2).toString();
+          const gasPrice = Number(Number(baseGasPrice) + (this.retryNumber * Number(config.settings.ethereum.submit_rewards_retry_gas_increase))).toFixed(2).toString();
           AppLogger.log(`Will Submit ${JSON.stringify(this.submittedData)} with gasPrice=${gasPrice} and nonce=${this.nonce} and this.retryNumber=${this.retryNumber}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
           this.retryNumber += 1;
           try {
-            const submitRes: boolean = await this.submitTransaction(rewardsHash, activeApplications, amounts, gasPrice);
-            if (submitRes) {
-              AppLogger.log(`Submitted Succesfully - finish script here...`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
-              return true;
-            }
-          } catch (error) {
-            if (String(error).toLowerCase().indexOf('transaction was not mined within') >= 0) {
-              AppLogger.log(`Transaction not mined error ${JSON.stringify(error)} txHash=${this.submittedData.txHash} will wait for ${Number(config.settings.ethereum.submit_rewards_retry_time)} seconds`, 
-                            'DAILY_SUMMARY_CALCULATE_SUBMIT_TIMEOUT_WAIT', 'jon', 1, 0, 0);
-              await this.sleep(Number(config.settings.ethereum.submit_rewards_retry_time));
-              // look up the transaction
-              const txReceipt = await this.web3.eth.getTransactionReceipt(this.submittedData.txHash);
-              if (txReceipt != null) { // it's on chain we're done
-                AppLogger.log(`Found receipt after timeout ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(txReceipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_AFTER_TIMEOUT', 'jon', 1, 0, 0);
-                break;
-              }
-            } else if (String(error).toLowerCase().indexOf('nonce') >= 0) {
-              AppLogger.log(`Nonce was already processed we are done msg=${String(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_DURING_TIMEOUT', 'jon', 1, 0, 0);
-              break;
-            } else {
-              AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
-              throw error;
-            }
+            this.submitTransaction(rewardsHash, activeApplications, amounts, gasPrice);
+            await this.sleep(Number(config.settings.ethereum.submit_rewards_retry_time));
+            
+            // if (submitRes) {
+            //   AppLogger.log(`Submitted Succesfully - finish script here...`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+            //   return true;
+            // }
+          } catch (error) {            
+            AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);                          
           }
         } while (this.retryNumber < maxRetries);
-        
+        const maxRetryMsg = `All retries ${maxRetries} did not succeed within 1 minute. Notice that last transaction may still be mined`;
+        AppLogger.log(`${maxRetryMsg}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+        throw new Error(maxRetryMsg);
         // await this.tokenContract.methods.submitDailyRewards(
         //   this.rewardsDayData.rewardsDay,
         //   rewardsHash,
