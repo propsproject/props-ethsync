@@ -1,4 +1,4 @@
-FROM node:8.16-slim AS multistage
+FROM node:10.18-slim AS multistage
 WORKDIR /service
 RUN apt-get update && apt-get install -y git python make gcc g++
 ADD . /service
@@ -10,7 +10,7 @@ RUN npm run build
 RUN rm /service/lib -rf
 RUN rm /service/dist/settings/settings.development.* || true
 
-FROM node:8.16-slim
+FROM node:10.18-slim
 CMD npm run sync-latest
 EXPOSE 3000
 WORKDIR /service
