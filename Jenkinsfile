@@ -72,7 +72,7 @@ node {
 }
 
 def setupEnvironment(repository) {
-  def node = tool name: 'node-8', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
+  def node = tool name: 'node-10', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
   env.PATH = "${node}/bin:${env.PATH}"
   env.SLACK_NAME = "${repository}:${env.BRANCH_NAME}"
   env.REPOSITORY = "${repository}"

@@ -40,10 +40,43 @@ export default class DailyRewards {
   currentValidatorAddress: string;
   currentValidatorPK: string;
   contractAddress: string;
+  retryNumber: number;
+  submittedData: any;
+  nonce: any;
+
+  sleep(sec): Promise<boolean> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, sec * 1000, true);
+    });
+  }
+
+  async submitTransaction(rewardsHash: string, activeApplications:string[], amounts: string[], gasPrice: string): Promise<boolean> {
+    await this.tokenContract.methods.submitDailyRewards(
+      this.rewardsDayData.rewardsDay,
+      rewardsHash,
+      activeApplications,
+      amounts,
+    ).send(
+      { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(gasPrice, 'gwei'), nonce: this.nonce},
+    ).on('transactionHash', (hash) => { 
+      this.submittedData.txHash = hash;
+      AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} txHash=${JSON.stringify(hash)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_ON_TXHASH', 'jon', 1, 0, 0);
+    }).then((receipt) => {
+      this.submittedData.txHash = receipt.transactionHash;
+      this.submittedData.receipt = receipt;
+      AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+      return true;
+    }).catch((error) => {
+      this.submittedData.error = error;        
+      throw new Error(error);
+    });  
+    return false;
+  }
 
   async calculateAndSubmit() {
     try {
       AppLogger.log(`calculateAndSubmit version notes: using state-api to get rewards data`, 'SUBMIT_REWARDS', 'jon', 1, 0, 0);
+      this.retryNumber = 0;
       // instantiate transaction manager for sidechain transactions
       this.tm = config.settings.sawtooth.transaction_manager();
       // setup web3 provider with private key      
@@ -60,12 +93,13 @@ export default class DailyRewards {
       this.currentValidatorAddress = currentAccount.address;
       try {
         const ethBalance:Decimal = new Decimal(this.web3.utils.fromWei(await this.web3.eth.getBalance(this.currentValidatorAddress)));
-        AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
+        
+        this.nonce = await this.web3.eth.getTransactionCount(this.currentValidatorAddress);
+        AppLogger.log(`Wallet ${this.currentValidatorAddress} has ${ethBalance.toString()} ETH and nonce=${this.nonce}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE', 'jon', 1, 0, 0, { amount: Number(ethBalance.toString()) });
       } catch (error) {
         AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
         throw new Error(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`);
-      }
-
+      }      
       await this.calcRewardsDayData();
       const totalSupplyBlockToUse:number = await this.getBlockNumberOfPreviousRewardsDay();            
       await this.getRewardsContractData(totalSupplyBlockToUse);      
@@ -126,7 +160,7 @@ export default class DailyRewards {
           this.formatArrayForSha3(activeApplications, 'address'),
           this.formatArrayForSha3(amounts, 'uint256'),
         );
-        const submittedData:any = {
+        this.submittedData = {
           txHash: '',
           receipt: '',
           error: '',
@@ -136,24 +170,75 @@ export default class DailyRewards {
           activeApplications,
           amounts,
         };
-        AppLogger.log(`Will Submit ${JSON.stringify(submittedData)}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
-
-        await this.tokenContract.methods.submitDailyRewards(
-          this.rewardsDayData.rewardsDay,
-          rewardsHash,
-          activeApplications,
-          amounts,
-        ).send(
-          { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
-        ).then((receipt) => {
-          submittedData.txHash = receipt.transactionHash;
-          submittedData.receipt = receipt;
-          AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
-        }).catch((error) => {
-          submittedData.error = error;
-          AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
-          throw new Error(error);
-        });        
+        
+        const maxRetries = Number(config.settings.ethereum.submit_rewards_retry_max);
+        do {
+          const gasPrice = Number(Number(config.settings.ethereum.gas_price) + (this.retryNumber * Number(config.settings.ethereum.submit_rewards_retry_gas_increase))).toFixed(2).toString();
+          AppLogger.log(`Will Submit ${JSON.stringify(this.submittedData)} with gasPrice=${gasPrice} and nonce=${this.nonce} and this.retryNumber=${this.retryNumber}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
+          this.retryNumber += 1;
+          try {
+            const submitRes: boolean = await this.submitTransaction(rewardsHash, activeApplications, amounts, gasPrice);
+            if (submitRes) {
+              AppLogger.log(`Submitted Succesfully - finish script here...`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+              return true;
+            }
+          } catch (error) {
+            if (String(error).toLowerCase().indexOf('transaction was not mined within') >= 0) {
+              AppLogger.log(`Transaction not mined error ${JSON.stringify(error)} txHash=${this.submittedData.txHash} will wait for ${Number(config.settings.ethereum.submit_rewards_retry_time)} seconds`, 
+                            'DAILY_SUMMARY_CALCULATE_SUBMIT_TIMEOUT_WAIT', 'jon', 1, 0, 0);
+              await this.sleep(Number(config.settings.ethereum.submit_rewards_retry_time));
+              // look up the transaction
+              const txReceipt = await this.web3.eth.getTransactionReceipt(this.submittedData.txHash);
+              if (txReceipt != null) { // it's on chain we're done
+                AppLogger.log(`Found receipt after timeout ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(txReceipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_AFTER_TIMEOUT', 'jon', 1, 0, 0);
+                break;
+              }
+            } else if (String(error).toLowerCase().indexOf('nonce') >= 0) {
+              AppLogger.log(`Nonce was already processed we are done msg=${String(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS_DURING_TIMEOUT', 'jon', 1, 0, 0);
+              break;
+            } else {
+              AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+              throw error;
+            }
+          }
+        } while (this.retryNumber < maxRetries);
+        
+        // await this.tokenContract.methods.submitDailyRewards(
+        //   this.rewardsDayData.rewardsDay,
+        //   rewardsHash,
+        //   activeApplications,
+        //   amounts,
+        // ).send(
+        //   { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
+        // ).on('transactionHash', (hash) => { 
+        //   this.submittedData.txHash = hash;
+        //   AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} txHash=${JSON.stringify(hash)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_ON_TXHASH', 'jon', 1, 0, 0);
+        // }).then((receipt) => {
+        //   this.submittedData.txHash = receipt.transactionHash;
+        //   this.submittedData.receipt = receipt;
+        //   AppLogger.log(`Submitted ${JSON.stringify(this.submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+        // }).catch((error) => {
+        //   this.submittedData.error = error;
+        //   AppLogger.log(`Failed to submit ${JSON.stringify(this.submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+        //   throw new Error(error);
+        // });  
+        
+        // await this.tokenContract.methods.submitDailyRewards(
+        //   this.rewardsDayData.rewardsDay,
+        //   rewardsHash,
+        //   activeApplications,
+        //   amounts,
+        // ).send(
+        //   { from: this.currentValidatorAddress, gas: config.settings.ethereum.submit_rewards_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei') },
+        // ).then((receipt) => {
+        //   submittedData.txHash = receipt.transactionHash;
+        //   submittedData.receipt = receipt;
+        //   AppLogger.log(`Submitted ${JSON.stringify(submittedData)} receipt=${JSON.stringify(receipt)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+        // }).catch((error) => {
+        //   submittedData.error = error;
+        //   AppLogger.log(`Failed to submit ${JSON.stringify(submittedData)} error=${JSON.stringify(error)}`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_FAIL', 'jon', 1, 0, 0);
+        //   throw new Error(error);
+        // });        
       } else {
         const msg:string = `This validator ${this.currentValidatorAddress} is not on the list (${JSON.stringify(this.rewardsContractData.validators)}) thus should not submit`;
         AppLogger.log(msg, 'DAILY_SUMMARY_CALCULATE_DONE', 'jon', 1, 0, 0);
