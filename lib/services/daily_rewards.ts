@@ -178,7 +178,10 @@ export default class DailyRewards {
           this.retryNumber += 1;
           try {
             const submitRes: boolean = await this.submitTransaction(rewardsHash, activeApplications, amounts, gasPrice);
-            if (submitRes) break;
+            if (submitRes) {
+              AppLogger.log(`Submitted Succesfully - finish script here...`, 'DAILY_SUMMARY_CALCULATE_SUBMIT_SUCCESS', 'jon', 1, 0, 0);
+              return true;
+            }
           } catch (error) {
             if (String(error).toLowerCase().indexOf('transaction was not mined within') >= 0) {
               AppLogger.log(`Transaction not mined error ${JSON.stringify(error)} txHash=${this.submittedData.txHash} will wait for ${Number(config.settings.ethereum.submit_rewards_retry_time)} seconds`, 
