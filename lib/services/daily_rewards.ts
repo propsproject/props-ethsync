@@ -188,9 +188,9 @@ export default class DailyRewards {
           };
           
           const gasRes = await rp(gasOptions);          
-          AppLogger.log(`Query for gas price from ${gasOracleUrl} => gasPrice=min(${gasRes['result']['ProposeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);          
+          AppLogger.log(`Query for gas price from ${gasOracleUrl} => gasPrice=min(${gasRes['result']['SafeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);          
           if (process.env.NODE_ENV === 'production') {
-            baseGasPrice = Math.min(Number(gasRes['result']['ProposeGasPrice']), 1500);
+            baseGasPrice = Math.min(Number(gasRes['result']['SafeGasPrice']), 1500);
           } else {
             AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);          
           }          
