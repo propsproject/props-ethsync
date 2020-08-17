@@ -197,9 +197,9 @@ export default class DailyRewards {
         } catch (error) {
           AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
         }
-        
+                
         do {
-          const gasPrice = Number(Number(baseGasPrice) + (this.retryNumber * Number(config.settings.ethereum.submit_rewards_retry_gas_increase))).toFixed(2).toString();
+          const gasPrice = Number(Number(baseGasPrice) + (this.retryNumber * Number(config.settings.ethereum.submit_rewards_retry_gas_increase)) + 0.01).toFixed(2).toString();
           AppLogger.log(`Will Submit ${JSON.stringify(this.submittedData)} with gasPrice=${gasPrice} and nonce=${this.nonce} and this.retryNumber=${this.retryNumber}`, 'DAILY_SUMMARY_CALCULATE_SUBMISSION', 'jon', 1, 0, 0);
           this.retryNumber += 1;
           try {
