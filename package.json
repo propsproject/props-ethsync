@@ -46,7 +46,7 @@
     "ethereumjs-util": "^6.2.0",
     "ethereumjs-wallet": "^0.6.3",
     "ethers": "^5.0.31",
-    "google-closure-library": "^20180910.0.0",
+    "google-closure-library": "^20190301.0.0",
     "google-protobuf": "^3.6.1",
     "joi": "^10.2.0",
     "lodash": "^4.17.4",
