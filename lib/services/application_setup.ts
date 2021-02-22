@@ -200,7 +200,8 @@ export default class ApplicationSetup {
    * @param _sidechainAddress string sidechain wallet address
    */
   async setupViaDefender(clientId:string, clientSecret:string, submittingWallet: string, _name:string, _rewardsAddress:string, _sidechainAddress:string) {    
-    const provider = new ethers.providers.JsonRpcProvider(config.settings.ethereum.uri, String(config.settings.ethereum.uri).indexOf('mainnet') >= 0 ? 'mainnet' : 'rinkeby');
+    const network = String(config.settings.ethereum.uri).indexOf('mainnet') >= 0 ? 'mainnet' : 'rinkeby';
+    const provider = new ethers.providers.JsonRpcProvider(config.settings.ethereum.uri, network);    
     const credentials = { apiKey: clientId, apiSecret: clientSecret };    
     const signer = new DefenderRelaySigner(
       credentials, 
@@ -209,19 +210,15 @@ export default class ApplicationSetup {
         from: submittingWallet, 
         speed: 'fast',
       });
-    const TokenContractDefender = new ethers.Contract(config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address, JSON.parse(Utils.abi()), signer);        
-    console.log(`config.settings.ethereum.entity_setup_gas=${config.settings.ethereum.entity_setup_gas}, config.settings.ethereum.gas_price=${config.settings.ethereum.gas_price}`);    
+    const contract_address: string = config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
+    const TokenContractDefender = new ethers.Contract(contract_address, JSON.parse(Utils.abi()), signer);        
+    console.log(`network=${network}, contract_address=${contract_address}, _name=${_name}, config.settings.ethereum.entity_setup_gas=${config.settings.ethereum.entity_setup_gas}, config.settings.ethereum.gas_price=${config.settings.ethereum.gas_price}`);    
+    
     try {
 
-      await TokenContractDefender.functions.updateEntity(0, ethers.utils.hexlify(_name), _rewardsAddress, _sidechainAddress).send(
-        {
-          gas: config.settings.ethereum.entity_setup_gas, gasPrice: this.web3.utils.toWei(config.settings.ethereum.gas_price, 'gwei'),
-        }).then((receipt) => {
-          console.log(`receipt=${JSON.stringify(receipt)}`);
-        }).catch((err) => {
-          console.log(`err=${JSON.stringify(err)}`);
-          throw err;
-        });
+      const res = await TokenContractDefender.updateEntity(0, ethers.utils.formatBytes32String(_name), _rewardsAddress, _sidechainAddress,
+                                                           { });
+      console.log(JSON.stringify(res));
     } catch (error) {
       throw error;
     }
