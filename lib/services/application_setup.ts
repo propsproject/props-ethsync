@@ -1,6 +1,7 @@
-const { AppLogger } = require('props-lib-logger');
 const PrivateKeyProvider = require('truffle-privatekey-provider');
 const Web3 = require('web3');
+const { DefenderRelaySigner } = require('defender-relay-client/lib/ethers');
+const { ethers } = require('ethers');
 
 import axios from 'axios';
 import config from '../config';
@@ -173,6 +174,7 @@ export default class ApplicationSetup {
     const web3 = new Web3(provider);
     const account = web3.eth.accounts.privateKeyToAccount(`0x${pk}`);
     console.log(account.address);
+    console.log(`config.settings.ethereum.entity_setup_gas=${config.settings.ethereum.entity_setup_gas}, config.settings.ethereum.gas_price=${config.settings.ethereum.gas_price}`);
     const TokenContract = new web3.eth.Contract(JSON.parse(Utils.abi()),config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address);
     try {
 
@@ -185,6 +187,38 @@ export default class ApplicationSetup {
           console.log(`err=${JSON.stringify(err)}`);
           throw err;
         });
+    } catch (error) {
+      throw error;
+    }
+  }  
+  /**
+   * Setup the application on ethereum props rewards contract using defender relayer
+   *
+   * @param _pk application's private key
+   * @param _name string application name
+   * @param _rewardsAddress string rewards wallet address
+   * @param _sidechainAddress string sidechain wallet address
+   */
+  async setupViaDefender(clientId:string, clientSecret:string, submittingWallet: string, _name:string, _rewardsAddress:string, _sidechainAddress:string) {    
+    const network = String(config.settings.ethereum.uri).indexOf('mainnet') >= 0 ? 'mainnet' : 'rinkeby';
+    const provider = new ethers.providers.JsonRpcProvider(config.settings.ethereum.uri, network);    
+    const credentials = { apiKey: clientId, apiSecret: clientSecret };    
+    const signer = new DefenderRelaySigner(
+      credentials, 
+      provider, 
+      { 
+        from: submittingWallet, 
+        speed: 'fast',
+      });
+    const contract_address: string = config.settings.ethereum.localhost_test_contract.length > 0 ? config.settings.ethereum.localhost_test_contract : config.settings.ethereum.token_address;
+    const TokenContractDefender = new ethers.Contract(contract_address, JSON.parse(Utils.abi()), signer);        
+    console.log(`network=${network}, contract_address=${contract_address}, _name=${_name}, config.settings.ethereum.entity_setup_gas=${config.settings.ethereum.entity_setup_gas}, config.settings.ethereum.gas_price=${config.settings.ethereum.gas_price}`);    
+    
+    try {
+
+      const res = await TokenContractDefender.updateEntity(0, ethers.utils.formatBytes32String(_name), _rewardsAddress, _sidechainAddress,
+                                                           { });
+      console.log(JSON.stringify(res));
     } catch (error) {
       throw error;
     }
