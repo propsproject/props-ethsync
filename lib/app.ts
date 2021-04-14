@@ -3,6 +3,7 @@ import ValidatorSetup from "./services/validator_setup";
 import ApplicationSetup from "./services/application_setup";
 import DailyRewards from "./services/daily_rewards";
 import CreateNewWallet from "./services/create_new_wallet";
+import BitskiTransfer from "./services/bitski_transfer";
 
 const commander = require("commander");
 
@@ -35,7 +36,8 @@ program
   .option(
     "-dap, --defender-application-setup",
     "Setup a an application on etheruem via defender relayer"
-  );
+  )
+  .option("-bt, --bitski-transfer", "Transfer using bitski");
 
 program.parse(process.argv);
 
@@ -212,6 +214,20 @@ if (program.syncAll) {
     .then(() => {
       console.log(
         `Setup application with ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]}, ${process.argv[7]}, ${process.argv[8]}}}`
+      );
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.log(error);
+      process.exit(0);
+    });
+} else if (program.bitskiTransfer) {
+  const bitskiTransfer = new BitskiTransfer();
+  bitskiTransfer
+    .transfer(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7])
+    .then(() => {
+      console.log(
+        `Transferred from bitski wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]}`
       );
       process.exit(0);
     })
