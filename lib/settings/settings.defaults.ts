@@ -34,7 +34,7 @@ export default () => ({
     seconds_in_day: process.env.SECONDS_IN_DAY ? Number(process.env.SECONDS_IN_DAY) : 86400,
     avg_block_time: process.env.AVG_BLOCK_TIME ? Number(process.env.AVG_BLOCK_TIME) : 15,
     submit_rewards_gas: process.env.SUBMIT_REWARDS_GAS ? Number(process.env.SUBMIT_REWARDS_GAS) : 800000,
-    gas_price: process.env.GAS_PRICE ? Number(process.env.GAS_PRICE) : '200', // gwei
+    gas_price: process.env.GAS_PRICE ? Number(process.env.GAS_PRICE) : '150', // gwei
     entity_setup_gas: '150000',
     entity_setup_multisig_gas: '500000',
     transfer_gas: '200000',

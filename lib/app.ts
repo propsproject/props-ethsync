@@ -37,7 +37,8 @@ program
     "-dap, --defender-application-setup",
     "Setup a an application on etheruem via defender relayer"
   )
-  .option("-bt, --bitski-transfer", "Transfer using bitski");
+  .option("-btp, --bitski-transfer-props", "Transfer props using bitski")
+  .option("-bte, --bitski-transfer-eth", "Transfer eth using bitski");
 
 program.parse(process.argv);
 
@@ -221,13 +222,27 @@ if (program.syncAll) {
       console.log(error);
       process.exit(0);
     });
-} else if (program.bitskiTransfer) {
+} else if (program.bitskiTransferProps) {
   const bitskiTransfer = new BitskiTransfer();
   bitskiTransfer
-    .transfer(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7])
+    .transferProps(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7])
     .then(() => {
       console.log(
-        `Transferred from bitski wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]}`
+        `Transferred props from bitski wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]}`
+      );
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.log(error);
+      process.exit(0);
+    });
+} else if (program.bitskiTransferEth) {
+  const bitskiTransfer = new BitskiTransfer();
+  bitskiTransfer
+    .transferEth(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7])
+    .then(() => {
+      console.log(
+        `Transferred eth from bitski wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]}`
       );
       process.exit(0);
     })
