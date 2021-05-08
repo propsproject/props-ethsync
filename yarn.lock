@@ -4369,6 +4369,10 @@ google-closure-library@^20180910.0.0:
   version "20180910.0.0"
   resolved "https://registry.yarnpkg.com/google-closure-library/-/google-closure-library-20180910.0.0.tgz#10f3c912a4974eedb01b853009b0847fd1ceef26"
 
+google-closure-library@^20200315.0.0:
+  version "20200315.0.0"
+  resolved "https://registry.yarnpkg.com/google-closure-library/-/google-closure-library-20200315.0.0.tgz#e20769b4e5be77da053c2d3bb21effef70146702"
+
 google-protobuf@^3.6.1:
   version "3.6.1"
   resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.6.1.tgz#7ef58e2bea137a93cdaf5cfd5afa5f6abdd92025"
