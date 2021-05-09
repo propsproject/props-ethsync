@@ -62,7 +62,7 @@
     "request-promise": "^4.2.2",
     "request-promise-native": "^1.0.7",
     "sawtooth-sdk": "^1.0.5",
-    "sequelize": "^4.4.2",
+    "sequelize": "^5.15.1",
     "sequelize-cli": "^4.0.0",
     "sha256": "^0.2.0",
     "truffle-privatekey-provider": "^1.0.0",
