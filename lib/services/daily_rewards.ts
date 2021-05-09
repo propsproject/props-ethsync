@@ -178,24 +178,37 @@ export default class DailyRewards {
         const maxRetries = Number(config.settings.ethereum.submit_rewards_retry_max);        
         
         let baseGasPrice = Number(config.settings.ethereum.gas_price);
-        const gasOracleUrl:String = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle';        
-        try {
-          
-          const gasOptions = {
-            url: gasOracleUrl,
-            json: true,
-            method: 'GET',
-          };
-          
-          const gasRes = await rp(gasOptions);          
-          AppLogger.log(`Query for gas price from ${gasOracleUrl} => gasPrice=min(${gasRes['result']['SafeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);          
-          if (process.env.NODE_ENV === 'production') {
-            baseGasPrice = Math.min(Number(gasRes['result']['SafeGasPrice']), 1500);
-          } else {
-            AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);          
-          }          
-        } catch (error) {
-          AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
+        if (process.env.NODE_ENV === 'production') {
+          const gasOracleUrl:String = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle';        
+          try {
+            
+            const gasOptions = {
+              url: gasOracleUrl,
+              json: true,
+              method: 'GET',
+            };
+            let retries: number = 0;
+            let hasGasPrice:boolean = false;
+            let gasRes;
+            const sleepMS = (milliseconds) => {
+              return new Promise(resolve => setTimeout(resolve, milliseconds));
+            };
+            while (!hasGasPrice && retries < 5) {
+              gasRes = await rp(gasOptions);
+              AppLogger.log(`Query for gas price from ${gasOracleUrl} (retry=${retries})=> gasPrice=min(${gasRes['result']['SafeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);
+              if (Number(gasRes['status']) === 1) {
+                hasGasPrice = true;
+                baseGasPrice = Math.min(Number(gasRes['result']['SafeGasPrice']), 1500);
+              } else {
+                await sleepMS(1000 * (retries + 1));
+              }
+              retries += 1;
+            }                        
+          } catch (error) {
+            AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
+          }
+        } else {
+          AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);
         }
         
         do {
