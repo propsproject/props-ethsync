@@ -205,12 +205,12 @@ def pushImage(service, environment) {
     def localTag = "${env.BUILD_NUMBER}"
     def remoteTag = "${env.BUILD_NUMBER}"
     def repo = "${service}-${environment}-sidechain"
-    sh "docker tag ${repo}:${localTag} ${service}:latest"
-    sh "docker tag ${repo}:${localTag} 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${remoteTag}"
-    sh "docker tag ${repo}:${localTag} 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:latest"
-    sh 'eval $(aws ecr get-login --region us-east-1 --no-include-email)'
-    sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${remoteTag}"
-    sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:latest"
+    // sh "docker tag ${repo}:${localTag} ${service}:latest"
+    // sh "docker tag ${repo}:${localTag} 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${remoteTag}"
+    // sh "docker tag ${repo}:${localTag} 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:latest"
+    // sh 'eval $(aws ecr get-login --region us-east-1 --no-include-email)'
+    // sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:${remoteTag}"
+    // sh "docker push 774122189772.dkr.ecr.us-east-1.amazonaws.com/${repo}:latest"
 
     if (environment == 'production') {
         sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:latest"
