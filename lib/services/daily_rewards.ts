@@ -289,7 +289,7 @@ export default class DailyRewards {
       applicationRewardsPphm,
       applicationRewardsMaxVariationPphm,
     };
-    AppLogger.log(`Getting rewards contract data, totalSupplyBlock=${totalSupplyBlock} ${JSON.stringify(this.rewardsContractData)}`, 'DAILY_SUMMARY_GET_REWARDS_CONTRACT_DATA', 'jon', 1, 0, 0);
+    AppLogger.log(`Getting rewards contract data, ${JSON.stringify(this.rewardsContractData)}`, 'DAILY_SUMMARY_GET_REWARDS_CONTRACT_DATA', 'jon', 1, 0, 0);
     if (!(applications.length > 0 && validators.length > 0 && maxTotalSupply.isPositive() && totalSupply.isPositive() && applicationRewardsPphm.isPositive() && applicationRewardsMaxVariationPphm.isPositive()))
       throw new Error(`Could not get valid rewards contract data ${JSON.stringify(this.rewardsContractData)}`);
     return true;
