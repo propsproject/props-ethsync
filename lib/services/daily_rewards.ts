@@ -1,5 +1,4 @@
 import Decimal from 'decimal.js';
-import { TransactionManager } from 'propskit';
 const { AppLogger } = require('props-lib-logger');
 const Web3 = require('web3');
 const { soliditySha3 } = require('web3-utils');
@@ -8,7 +7,7 @@ import rp = require('request-promise-native');
 
 import config from '../config';
 import Utils from '../utils/utils';
-import { AppRewardsCalcuator, Activity } from '../rewards/app_rewards_calculator';
+import { AppRewardsCalcuator } from '../rewards/app_rewards_calculator';
 
 interface RewardsDayTimeData {
   rewardsStartTimestamp:number;
@@ -32,8 +31,7 @@ interface RewardsContractData {
 export default class DailyRewards {
 
   web3 = new Web3(config.settings.ethereum.uri);
-  tokenContract: any;
-  tm: TransactionManager;
+  tokenContract: any;  
   rewardsDayData: RewardsDayTimeData;
   rewardsContractData: RewardsContractData;
   activeApplications: string[];
@@ -81,8 +79,6 @@ export default class DailyRewards {
     try {
       AppLogger.log(`calculateAndSubmit version notes: using state-api to get rewards data`, 'SUBMIT_REWARDS', 'jon', 1, 0, 0);
       this.retryNumber = 0;
-      // instantiate transaction manager for sidechain transactions
-      this.tm = config.settings.sawtooth.transaction_manager();
       // setup web3 provider with private key      
       this.currentValidatorPK = config.settings.ethereum.validator_pk;      
       this.web3 = new Web3(new Web3.providers.HttpProvider(config.settings.ethereum.uri));      
@@ -104,19 +100,13 @@ export default class DailyRewards {
         AppLogger.log(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`, 'DAILY_SUMMARY_VALIDATOR_BALANCE_ERROR', 'jon', 1, 0, 0);
         throw new Error(`Failed to get Wallet ${this.currentValidatorAddress} balance ${JSON.stringify(error)}`);
       }      
-      await this.calcRewardsDayData();
-      const totalSupplyBlockToUse:number = await this.getBlockNumberOfPreviousRewardsDay();            
-      await this.getRewardsContractData(totalSupplyBlockToUse);      
+      await this.calcRewardsDayData();      
+      await this.getRewardsContractData();      
 
       // check if i am an active validator that should submit
       if (this.rewardsContractData.validators.indexOf(this.currentValidatorAddress) > -1) {
         // check how many applications are participating - if 1 give it all the daily reward, otherwise get activity and props for all users to calculate per algorithm
-        const appRewardsCalc: AppRewardsCalcuator = new AppRewardsCalcuator();
-        const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
-            .minus(this.rewardsContractData.totalSupply)
-            .times(this.rewardsContractData.applicationRewardsPphm)
-            .div(1e8)
-            .floor().toString();
+        const appRewardsCalc: AppRewardsCalcuator = new AppRewardsCalcuator();        
 
         // get activity summary data from props-state sidechain cache
         const url = `${config.settings.activity.state_rest_uri}`;
@@ -136,7 +126,13 @@ export default class DailyRewards {
         if (Number(res['statusCode']) !== 200) {
           AppLogger.log(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_ERROR', 'jon', 0, 0, 0, {}, {});
           throw new Error(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`);
-        } 
+        }
+        this.rewardsContractData.totalSupply = res['payload']['totalSupply'];
+        const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
+            .minus(this.rewardsContractData.totalSupply)
+            .times(this.rewardsContractData.applicationRewardsPphm)
+            .div(1e8)
+            .floor().toString(); 
         AppLogger.log(`Got the following results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_SUCCESS', 'jon', 0, 0, 0, {}, {});
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
         const applications: string[] = this.rewardsContractData.applications;
@@ -178,24 +174,37 @@ export default class DailyRewards {
         const maxRetries = Number(config.settings.ethereum.submit_rewards_retry_max);        
         
         let baseGasPrice = Number(config.settings.ethereum.gas_price);
-        const gasOracleUrl:String = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle';        
-        try {
-          
-          const gasOptions = {
-            url: gasOracleUrl,
-            json: true,
-            method: 'GET',
-          };
-          
-          const gasRes = await rp(gasOptions);          
-          AppLogger.log(`Query for gas price from ${gasOracleUrl} => gasPrice=min(${gasRes['result']['SafeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);          
-          if (process.env.NODE_ENV === 'production') {
-            baseGasPrice = Math.min(Number(gasRes['result']['SafeGasPrice']), 1500);
-          } else {
-            AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);          
-          }          
-        } catch (error) {
-          AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
+        if (process.env.NODE_ENV === 'production') {
+          const gasOracleUrl:String = 'https://api.etherscan.io/api?module=gastracker&action=gasoracle';        
+          try {
+            
+            const gasOptions = {
+              url: gasOracleUrl,
+              json: true,
+              method: 'GET',
+            };
+            let retries: number = 0;
+            let hasGasPrice:boolean = false;
+            let gasRes;
+            const sleepMS = (milliseconds) => {
+              return new Promise(resolve => setTimeout(resolve, milliseconds));
+            };
+            while (!hasGasPrice && retries < 5) {
+              gasRes = await rp(gasOptions);
+              AppLogger.log(`Query for gas price from ${gasOracleUrl} (retry=${retries})=> gasPrice=min(${gasRes['result']['SafeGasPrice']},1500) from: ${JSON.stringify(gasRes)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE', 'jon', 1, 0, 0);
+              if (Number(gasRes['status']) === 1) {
+                hasGasPrice = true;
+                baseGasPrice = Math.min(Number(gasRes['result']['SafeGasPrice']), 1500);
+              } else {
+                await sleepMS(1000 * (retries + 1));
+              }
+              retries += 1;
+            }                        
+          } catch (error) {
+            AppLogger.log(`Query for gas price from ${gasOracleUrl} failed => ${JSON.stringify(error)}`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_FAILED', 'jon', 1, 0, 0);
+          }
+        } else {
+          AppLogger.log(`Overriding gasPrice with default ${baseGasPrice} - oracle gas price is for production only`, 'DAILY_SUMMARY_GET_SUGGESTED_GAS_PRICE_DEFAULT', 'jon', 1, 0, 0);
         }
         
         do {
@@ -265,49 +274,11 @@ export default class DailyRewards {
     }
   }
 
-  async getBlockNumberOfPreviousRewardsDay(): Promise<number> {
-    try {
-      const currentEthBlockNumber:number = this.rewardsDayData.blockNumberOnEthereum;
-      const currentEthTimestamp:number = this.rewardsDayData.timestampOnEthereum;
-      const previousDayRewardsDayTimestampPlusBuffer = this.rewardsDayData.previousDayRewardsDayTimestamp + (15 * 60); // 15 minute buffer
-      let guestimateBlockNumber = currentEthBlockNumber - Math.floor((currentEthTimestamp - previousDayRewardsDayTimestampPlusBuffer) / config.settings.ethereum.avg_block_time);
-      // tslint:disable-next-line:max-line-length
-      // console.log(`currentEthBlockNumber=${currentEthBlockNumber}, currentEthTimestamp=${currentEthTimestamp}, previousDayRewardsDayTimestampPlusBuffer=${previousDayRewardsDayTimestampPlusBuffer},avg_block_time=${config.settings.ethereum.avg_block_time},guestimateBlockNumber=${guestimateBlockNumber}`);      
-      let guestimateBlockData:any = await this.web3.eth.getBlock(guestimateBlockNumber);      
-      let minDif = 99999999;
-      let chosenBlock = -1;
-      let currentDif = guestimateBlockData.timestamp - this.rewardsDayData.previousDayRewardsDayTimestamp;
-      let requestsCount = 0;
-      // console.log(`guestimateBlockData.timestamp=${guestimateBlockData.timestamp}, guestimateBlockNumber=${guestimateBlockNumber}, minDif=${minDif}, currentDif=${currentDif}, requestsCount=${requestsCount}`);
-      while (Math.abs(currentDif) < minDif) {
-        const previousMinDif = minDif;
-        minDif = Math.abs(currentDif);
-        if (minDif < previousMinDif) {
-          chosenBlock = guestimateBlockNumber;
-        }
-        if (currentDif > 0) {
-          guestimateBlockNumber -= 1;
-        } else {
-          guestimateBlockNumber += 1;
-        }
-        guestimateBlockData = await this.web3.eth.getBlock(guestimateBlockNumber);
-        requestsCount += 1;
-        currentDif = guestimateBlockData.timestamp - previousDayRewardsDayTimestampPlusBuffer;        
-        // console.log(`guestimateBlockData.timestamp=${guestimateBlockData.timestamp}, guestimateBlockNumber=${guestimateBlockNumber}, minDif=${minDif}, currentDif=${currentDif}, requestsCount=${requestsCount}, chosenBlock=${chosenBlock}`);
-      }      
-      // console.log(chosenBlock);
-      return chosenBlock;
-    } catch (error) {
-      AppLogger.log(`${error}`, 'DAILY_SUMMARY_GET_BLOCK_NUMBER_ERROR', 'jon', 1, 0, 0);
-      throw error;
-    }
-  }
-
-  async getRewardsContractData(totalSupplyBlock:number): Promise<boolean> {    
+  async getRewardsContractData(): Promise<boolean> {    
     const applications:string[] = await this.tokenContract.methods.getEntities(0, this.rewardsDayData.rewardsDay).call();    
     const validators:string[] = await this.tokenContract.methods.getEntities(1, this.rewardsDayData.rewardsDay).call();
     const maxTotalSupply:Decimal = new Decimal(await this.tokenContract.methods.maxTotalSupply().call());
-    const totalSupply:Decimal = new Decimal(await this.tokenContract.methods.totalSupply().call(undefined, totalSupplyBlock));    
+    const totalSupply:Decimal = new Decimal(0);
     const applicationRewardsPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(0, this.rewardsDayData.rewardsDay).call());
     const applicationRewardsMaxVariationPphm:Decimal = new Decimal(await this.tokenContract.methods.getParameter(1, this.rewardsDayData.rewardsDay).call());        
     this.rewardsContractData = {
