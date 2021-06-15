@@ -49,9 +49,9 @@ class AppRewardsCalcuator {
     Decimal.set({ toExpPos: 9e15 });
     // console.log(`************** payload=${JSON.stringify(payload)}`);
     if ('coefficeints' in payload) {
-      this.totalCoefficient = Number(payload['coefficeints']['totalCoefficient']);
-      this.medianCoefficient = Number(payload['coefficeints']['medianCoefficient']);
-      this.userCoefficient = Number(payload['coefficeints']['userCoefficient']);
+      this.totalCoefficient = Number(payload['coefficeints']['total']);
+      this.medianCoefficient = Number(payload['coefficeints']['median']);
+      this.userCoefficient = Number(payload['coefficeints']['user']);
     }
     let sumTotal: Decimal = new Decimal(payload['summary']['props']);
     let medianLogTotal: Decimal = new Decimal(payload['summary']['median_log']);
