@@ -127,13 +127,13 @@ export default class DailyRewards {
           AppLogger.log(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_ERROR', 'jon', 0, 0, 0, {}, {});
           throw new Error(`Failed to get results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`);
         }
-        this.rewardsContractData.totalSupply = res['payload']['totalSupply'];
+        AppLogger.log(`Got the following results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_SUCCESS', 'jon', 0, 0, 0, {}, {});
+        this.rewardsContractData.totalSupply = res['payload']['data']['totalSupply'];
         const dailyRewardAmount:string = this.rewardsContractData.maxTotalSupply
             .minus(this.rewardsContractData.totalSupply)
             .times(this.rewardsContractData.applicationRewardsPphm)
             .div(1e8)
-            .floor().toString(); 
-        AppLogger.log(`Got the following results from ${url} for rewardsDay=${this.rewardsDayData.rewardsDay} ${JSON.stringify(res)}`, 'DAILY_SUMMARY_FETCH_APPS_ACTIVITY_SUCCESS', 'jon', 0, 0, 0, {}, {});
+            .floor().toString();         
         appRewardsCalc.calcRewards(new Decimal(dailyRewardAmount), res['payload']['data']);
         const applications: string[] = this.rewardsContractData.applications;
         const amounts: string[] = [];// = appRewardsCalc.appRewards;[dailyRewardAmount]; // BigNumber
