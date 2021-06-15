@@ -219,7 +219,7 @@ def pushImage(service, environment) {
         }
     } else {
         sh "docker tag ${repo}:${localTag} propsprojectservices/props-ethsync:${environment}"
-        withDockerRegistry([ credentialsId: "dockerhub", url: "" ]) {
+        withDockerRegistry([ credentialsId: "propsdockerhub", url: "" ]) {
           sh "docker push propsprojectservices/props-ethsync:${environment}"
         }
     }
