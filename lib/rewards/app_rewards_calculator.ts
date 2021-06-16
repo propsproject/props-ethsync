@@ -48,6 +48,12 @@ class AppRewardsCalcuator {
   public calcRewards(dailyRewardsAmount: Decimal, payload:any) {
     Decimal.set({ toExpPos: 9e15 });
     // console.log(`************** payload=${JSON.stringify(payload)}`);
+    if ('coefficeints' in payload) {      
+      this.totalCoefficient = Number(payload['coefficeints']['total']);
+      this.medianCoefficient = Number(payload['coefficeints']['median']);
+      this.userCoefficient = Number(payload['coefficeints']['user']);
+      AppLogger.log(`Overriding coefficients with ${this.medianCoefficient}, ${this.totalCoefficient}, ${this.userCoefficient}`, 'DAILY_SUMMARY_COEFFICEINTS_OVERRIDE', 'jon');
+    }
     let sumTotal: Decimal = new Decimal(payload['summary']['props']);
     let medianLogTotal: Decimal = new Decimal(payload['summary']['median_log']);
     const usersTotal: number = Number(payload['summary']['users']);
