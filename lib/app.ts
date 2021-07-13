@@ -4,6 +4,8 @@ import ApplicationSetup from "./services/application_setup";
 import DailyRewards from "./services/daily_rewards";
 import CreateNewWallet from "./services/create_new_wallet";
 import BitskiTransfer from "./services/bitski_transfer";
+import RelayerTransfer from "./services/relayer_transfer";
+
 
 const commander = require("commander");
 
@@ -38,7 +40,8 @@ program
     "Setup a an application on etheruem via defender relayer"
   )
   .option("-btp, --bitski-transfer-props", "Transfer props using bitski")
-  .option("-bte, --bitski-transfer-eth", "Transfer eth using bitski");
+  .option("-bte, --bitski-transfer-eth", "Transfer eth using bitski")
+  .option("-rtp, --relayer-transfer-props", "Transfer props using defender relayer");
 
 program.parse(process.argv);
 
@@ -243,6 +246,20 @@ if (program.syncAll) {
     .then(() => {
       console.log(
         `Transferred eth from bitski wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]}`
+      );
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.log(error);
+      process.exit(0);
+    });
+} else if (program.relayerTransferProps) {
+  const relayerTransfer = new RelayerTransfer();
+  relayerTransfer
+    .transferProps(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7], process.argv[8])
+    .then(() => {
+      console.log(
+        `Transferred props from relayer wallet ${process.argv[3]}, ${process.argv[4]}, ${process.argv[5]}, ${process.argv[6]},  ${process.argv[7]},  ${process.argv[8]}`
       );
       process.exit(0);
     })
