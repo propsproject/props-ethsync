@@ -51,7 +51,7 @@
     "joi": "^10.2.0",
     "lodash": "^4.17.4",
     "md5": "^2.2.1",
-    "moment": "^2.22.1",
+    "moment": "^2.29.2",
     "moment-timezone": "^0.5.17",
     "newrelic": "2.5.0",
     "proper-lockfile": "^4.1.1",
